@@ -9,7 +9,7 @@ description = "YAGMCP — Headless Ghidra MCP server for LLM-assisted reverse en
 requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
-    "mcp[cli]>=1.9.0",
+    "fastmcp>=2.0.0",
     "httpx>=0.28.0",
     "uvicorn>=0.34.0",
     "starlette>=0.46.0",
