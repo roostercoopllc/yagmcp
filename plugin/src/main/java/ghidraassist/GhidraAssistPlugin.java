@@ -49,7 +49,7 @@ public class GhidraAssistPlugin extends ProgramPlugin {
     protected void init() {
         super.init();
 
-        contextTracker = new GhidraAssistContextTracker(this);
+        contextTracker = new GhidraAssistContextTracker();
         provider = new GhidraAssistProvider(this, contextTracker);
     }
 
@@ -61,7 +61,7 @@ public class GhidraAssistPlugin extends ProgramPlugin {
 
     @Override
     protected void programClosed(Program program) {
-        contextTracker.clearProgram(program);
+        contextTracker.clearProgram();
         provider.programClosed(program);
     }
 

@@ -39,11 +39,11 @@ public class GhidraAssistProvider extends ComponentProvider {
 
         // Build the chat panel
         GhidraAssistSettings settings = new GhidraAssistSettings(plugin.getTool());
-        GhidraAssistClient client = new GhidraAssistClient(settings);
-        chatPanel = new ChatPanel(client, contextTracker, settings);
+        GhidraAssistClient client = new GhidraAssistClient(settings.getServerUrl(), settings.getModelName());
+        chatPanel = new ChatPanel(settings, client, contextTracker);
 
         // Show initial system message
-        chatPanel.addSystemMessage("YAGMCP ready. Open a program and start chatting.");
+        chatPanel.addMessage("system", "YAGMCP ready. Open a program and start chatting.");
     }
 
     @Override
@@ -55,27 +55,27 @@ public class GhidraAssistProvider extends ComponentProvider {
      * Called when a program is opened.
      */
     public void programOpened(Program program) {
-        chatPanel.addSystemMessage("Program opened: " + program.getName());
+        chatPanel.addMessage("system","Program opened: " + program.getName());
     }
 
     /**
      * Called when a program is closed.
      */
     public void programClosed(Program program) {
-        chatPanel.addSystemMessage("Program closed: " + program.getName());
+        chatPanel.addMessage("system","Program closed: " + program.getName());
     }
 
     /**
      * Called when the active program changes.
      */
     public void programActivated(Program program) {
-        chatPanel.addSystemMessage("Active program: " + program.getName());
+        chatPanel.addMessage("system","Active program: " + program.getName());
     }
 
     /**
      * Clean up resources.
      */
     public void dispose() {
-        chatPanel.dispose();
+        // ChatPanel extends JPanel — no explicit disposal needed
     }
 }
