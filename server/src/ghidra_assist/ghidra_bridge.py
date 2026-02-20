@@ -800,6 +800,81 @@ class GhidraBridge:
             return {"success": False, "error": str(e)}
 
     # ------------------------------------------------------------------
+    # Triage / entropy helpers
+    # ------------------------------------------------------------------
+
+    def get_section_entropy(self, program) -> list[dict]:
+        """Compute Shannon entropy for each initialized memory block.
+
+        Returns:
+            List of dicts with name, start, size, entropy (0.0-8.0),
+            initialized flag.
+        """
+        import math
+
+        self._ensure_jvm()
+        memory = program.getMemory()
+        results = []
+
+        for block in memory.getBlocks():
+            entry: dict = {
+                "name": block.getName(),
+                "start": block.getStart().toString(),
+                "size": block.getSize(),
+                "initialized": block.isInitialized(),
+                "entropy": 0.0,
+            }
+
+            if not block.isInitialized() or block.getSize() == 0:
+                results.append(entry)
+                continue
+
+            # Read up to 64 KiB for entropy calculation
+            read_len = min(block.getSize(), 65536)
+            buf = bytearray(read_len)
+            try:
+                memory.getBytes(block.getStart(), buf)
+            except Exception:
+                results.append(entry)
+                continue
+
+            # Byte frequency
+            freq = [0] * 256
+            for b in buf:
+                freq[b] += 1
+            total = len(buf)
+            entropy = 0.0
+            for count in freq:
+                if count > 0:
+                    p = count / total
+                    entropy -= p * math.log2(p)
+
+            entry["entropy"] = round(entropy, 4)
+            results.append(entry)
+
+        return results
+
+    def get_entry_point_bytes(self, program, count: int = 64) -> dict:
+        """Read the first *count* bytes at the program entry point.
+
+        Returns:
+            dict with address, hex, ascii, length.
+        """
+        self._ensure_jvm()
+        entry_addr = program.getImageBase()
+
+        # Prefer the actual entry point if available
+        sym_table = program.getSymbolTable()
+        entry_sym = None
+        for sym in sym_table.getSymbols("entry"):
+            entry_sym = sym
+            break
+        if entry_sym is not None:
+            entry_addr = entry_sym.getAddress()
+
+        return self.read_bytes(program, entry_addr.toString(), count)
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 

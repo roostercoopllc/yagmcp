@@ -34,6 +34,7 @@ _PROMPT_MODULES = [
     "ghidra_assist.prompts.analyze_function",
     "ghidra_assist.prompts.vulnerability_scan",
     "ghidra_assist.prompts.rename_suggestions",
+    "ghidra_assist.prompts.malware_classify",
 ]
 
 
@@ -64,3 +65,14 @@ def discover_prompts() -> Dict[str, BasePrompt]:
         except Exception:
             logger.exception("Failed to import prompt module %s", mod)
     return PROMPT_REGISTRY
+
+
+def get_all_prompts() -> list[BasePrompt]:
+    """Return all registered prompt instances.
+
+    Triggers lazy discovery on first call — mirrors ``get_all_tools()``
+    in the tools package.
+    """
+    if not PROMPT_REGISTRY:
+        discover_prompts()
+    return list(PROMPT_REGISTRY.values())

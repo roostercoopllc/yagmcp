@@ -30,6 +30,10 @@ _TOOL_MODULES = [
     "ghidra_assist.tools.data_types",
     "ghidra_assist.tools.comments",
     "ghidra_assist.tools.modifications",
+    "ghidra_assist.tools.triage",
+    "ghidra_assist.tools.ioc_extract",
+    "ghidra_assist.tools.anti_analysis",
+    "ghidra_assist.tools.yara_gen",
     "ghidra_assist.tools.chat",
 ]
 

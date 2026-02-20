@@ -100,6 +100,10 @@ def create_app() -> FastMCP:
             "- Comment retrieval and creation (get_comments, set_comment)\n"
             "- Rename functions, variables, and labels (rename_function, rename_variable, rename_label)\n"
             "- Patch bytes in memory (patch_bytes)\n"
+            "- Binary triage with packing and entropy analysis (triage_binary)\n"
+            "- IOC extraction -- IPs, URLs, domains, registry keys (extract_iocs)\n"
+            "- Anti-analysis detection with bypass suggestions (detect_anti_analysis)\n"
+            "- YARA rule generation from binary indicators (generate_yara)\n"
             "- LLM-assisted chat (chat_with_ollama)\n"
         ),
     )
