@@ -1,0 +1,29 @@
+# =============================================================================
+# YAGMCP — Docker Compose (local storage)
+#
+# Usage:
+#   docker compose up -d
+#   docker compose -f docker-compose.yml -f docker-compose.nas.yml up -d
+# =============================================================================
+
+services:
+  yagmcp-server:
+    build:
+      context: ../../yagmcp/server
+      dockerfile: Dockerfile
+    image: yagmcp-server:latest
+    container_name: yagmcp-server
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8889:8889"
+    volumes:
+      - ./repos:/repos:ro
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8889/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s

@@ -1,0 +1,14 @@
+# =============================================================================
+# YAGMCP — NAS volume override
+#
+# Mounts the Ghidra work directory from the NAS instead of local ./repos.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.nas.yml up -d
+# =============================================================================
+
+services:
+  yagmcp-server:
+    volumes:
+      - /mnt/nas/Ghidra Work:/repos:ro
+      - ./data:/data

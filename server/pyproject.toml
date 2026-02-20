@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ghidra-assist"
+version = "0.1.0"
+description = "YAGMCP — Headless Ghidra MCP server for LLM-assisted reverse engineering"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+    "mcp[cli]>=1.9.0",
+    "httpx>=0.28.0",
+    "uvicorn>=0.34.0",
+    "starlette>=0.46.0",
+    "pydantic>=2.11.0",
+    "pydantic-settings>=2.8.0",
+    "pyghidra>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25.0",
+]
