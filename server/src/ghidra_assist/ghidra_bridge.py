@@ -516,8 +516,303 @@ class GhidraBridge:
         return results
 
     # ------------------------------------------------------------------
+    # Modifications (all wrapped in transactions)
+    # ------------------------------------------------------------------
+
+    def rename_function(self, program, name_or_address: str, new_name: str) -> dict:
+        """Rename a function by name or address.
+
+        Args:
+            program: Ghidra Program object.
+            name_or_address: Function name or hex entry address.
+            new_name: New function name.
+
+        Returns:
+            dict with success, old_name, new_name, address.
+        """
+        self._ensure_jvm()
+        from ghidra.program.model.symbol import SourceType  # type: ignore[import-untyped]
+
+        func = self._resolve_function(program, name_or_address)
+        if func is None:
+            func = self._find_function_by_name(program, name_or_address)
+        if func is None:
+            return {"success": False, "error": f"Function not found: {name_or_address}"}
+
+        old_name = func.getName()
+        txid = program.startTransaction("Rename function")
+        try:
+            func.setName(new_name, SourceType.USER_DEFINED)
+            program.endTransaction(txid, True)
+            return {
+                "success": True,
+                "old_name": old_name,
+                "new_name": new_name,
+                "address": func.getEntryPoint().toString(),
+            }
+        except Exception as e:
+            program.endTransaction(txid, False)
+            return {"success": False, "error": str(e)}
+
+    def rename_variable(
+        self, program, func_name_or_addr: str, old_var_name: str, new_var_name: str
+    ) -> dict:
+        """Rename a local variable or parameter within a function.
+
+        Decompiles the function to access the high-level variable map,
+        then renames the matching variable via HighFunctionDBUtil.
+
+        Args:
+            program: Ghidra Program object.
+            func_name_or_addr: Function name or hex entry address.
+            old_var_name: Current variable name to find.
+            new_var_name: New name to assign.
+
+        Returns:
+            dict with success, old_name, new_name, function.
+        """
+        self._ensure_jvm()
+        from ghidra.app.decompiler import DecompInterface  # type: ignore[import-untyped]
+        from ghidra.program.model.pcode import HighFunctionDBUtil  # type: ignore[import-untyped]
+        from ghidra.program.model.symbol import SourceType  # type: ignore[import-untyped]
+        from ghidra.util.task import ConsoleTaskMonitor  # type: ignore[import-untyped]
+
+        func = self._resolve_function(program, func_name_or_addr)
+        if func is None:
+            func = self._find_function_by_name(program, func_name_or_addr)
+        if func is None:
+            return {"success": False, "error": f"Function not found: {func_name_or_addr}"}
+
+        func_name = func.getName()
+
+        # Check function parameters first (cheaper than decompiling)
+        for param in func.getParameters():
+            if param.getName() == old_var_name:
+                txid = program.startTransaction("Rename parameter")
+                try:
+                    param.setName(new_var_name, SourceType.USER_DEFINED)
+                    program.endTransaction(txid, True)
+                    return {
+                        "success": True,
+                        "old_name": old_var_name,
+                        "new_name": new_var_name,
+                        "function": func_name,
+                        "kind": "parameter",
+                    }
+                except Exception as e:
+                    program.endTransaction(txid, False)
+                    return {"success": False, "error": str(e)}
+
+        # Decompile to get HighFunction for local variables
+        decomp = DecompInterface()
+        try:
+            decomp.openProgram(program)
+            result = decomp.decompileFunction(func, 60, ConsoleTaskMonitor())
+            if not result.decompileCompleted():
+                return {"success": False, "error": "Decompilation failed"}
+
+            high_func = result.getHighFunction()
+            if high_func is None:
+                return {"success": False, "error": "No high-level function available"}
+
+            local_map = high_func.getLocalSymbolMap()
+            target_sym = None
+            for sym in local_map.getSymbols():
+                if sym.getName() == old_var_name:
+                    target_sym = sym
+                    break
+
+            if target_sym is None:
+                return {
+                    "success": False,
+                    "error": f"Variable '{old_var_name}' not found in {func_name}",
+                }
+
+            txid = program.startTransaction("Rename variable")
+            try:
+                HighFunctionDBUtil.updateDBVariable(
+                    target_sym, new_var_name, None, SourceType.USER_DEFINED
+                )
+                program.endTransaction(txid, True)
+                return {
+                    "success": True,
+                    "old_name": old_var_name,
+                    "new_name": new_var_name,
+                    "function": func_name,
+                    "kind": "local_variable",
+                }
+            except Exception as e:
+                program.endTransaction(txid, False)
+                return {"success": False, "error": str(e)}
+        finally:
+            decomp.dispose()
+
+    def set_comment(
+        self, program, address: str, comment_text: str, comment_type: str = "eol"
+    ) -> dict:
+        """Add or update a comment at the given address.
+
+        Args:
+            program: Ghidra Program object.
+            address: Hex address string.
+            comment_text: The comment text to set.
+            comment_type: One of "eol", "pre", "post", "plate", "repeatable".
+
+        Returns:
+            dict with success, address, comment_type.
+        """
+        self._ensure_jvm()
+        from ghidra.program.model.listing import CodeUnit  # type: ignore[import-untyped]
+
+        type_map = {
+            "eol": CodeUnit.EOL_COMMENT,
+            "pre": CodeUnit.PRE_COMMENT,
+            "post": CodeUnit.POST_COMMENT,
+            "plate": CodeUnit.PLATE_COMMENT,
+            "repeatable": CodeUnit.REPEATABLE_COMMENT,
+        }
+        ct = type_map.get(comment_type.lower())
+        if ct is None:
+            return {
+                "success": False,
+                "error": f"Invalid comment type '{comment_type}'. "
+                f"Valid types: {', '.join(type_map.keys())}",
+            }
+
+        addr = self._parse_address(program, address)
+        if addr is None:
+            return {"success": False, "error": f"Invalid address: {address}"}
+
+        listing = program.getListing()
+        cu = listing.getCodeUnitAt(addr)
+        if cu is None:
+            return {"success": False, "error": f"No code unit at address {address}"}
+
+        old_comment = cu.getComment(ct) or ""
+        txid = program.startTransaction("Set comment")
+        try:
+            cu.setComment(ct, comment_text)
+            program.endTransaction(txid, True)
+            return {
+                "success": True,
+                "address": address,
+                "comment_type": comment_type,
+                "old_comment": old_comment,
+                "new_comment": comment_text,
+            }
+        except Exception as e:
+            program.endTransaction(txid, False)
+            return {"success": False, "error": str(e)}
+
+    def patch_bytes(self, program, address: str, hex_bytes: str) -> dict:
+        """Write bytes at the given address.
+
+        Args:
+            program: Ghidra Program object.
+            address: Hex address string.
+            hex_bytes: Hex string of bytes to write (e.g. "90 90" or "9090").
+
+        Returns:
+            dict with success, address, length, old_bytes, new_bytes.
+        """
+        self._ensure_jvm()
+
+        addr = self._parse_address(program, address)
+        if addr is None:
+            return {"success": False, "error": f"Invalid address: {address}"}
+
+        # Parse hex string — accept spaces, dashes, or no separators
+        cleaned = hex_bytes.replace(" ", "").replace("-", "").replace("0x", "")
+        if len(cleaned) % 2 != 0:
+            return {"success": False, "error": "Hex string must have even length"}
+        try:
+            new_bytes = bytes.fromhex(cleaned)
+        except ValueError:
+            return {"success": False, "error": f"Invalid hex string: {hex_bytes}"}
+
+        if len(new_bytes) == 0:
+            return {"success": False, "error": "No bytes to write"}
+        if len(new_bytes) > 1024:
+            return {"success": False, "error": "Patch too large (max 1024 bytes)"}
+
+        memory = program.getMemory()
+
+        # Read old bytes for the response
+        old_buf = bytearray(len(new_bytes))
+        try:
+            memory.getBytes(addr, old_buf)
+        except Exception:
+            old_buf = bytearray(len(new_bytes))
+        old_hex = bytes(old_buf).hex(" ")
+
+        txid = program.startTransaction("Patch bytes")
+        try:
+            memory.setBytes(addr, new_bytes)
+            program.endTransaction(txid, True)
+            return {
+                "success": True,
+                "address": address,
+                "length": len(new_bytes),
+                "old_bytes": old_hex,
+                "new_bytes": bytes(new_bytes).hex(" "),
+            }
+        except Exception as e:
+            program.endTransaction(txid, False)
+            return {"success": False, "error": str(e)}
+
+    def rename_label(self, program, address: str, new_name: str) -> dict:
+        """Rename or create a label at the given address.
+
+        Args:
+            program: Ghidra Program object.
+            address: Hex address string.
+            new_name: New label name.
+
+        Returns:
+            dict with success, address, old_name, new_name.
+        """
+        self._ensure_jvm()
+        from ghidra.program.model.symbol import SourceType  # type: ignore[import-untyped]
+
+        addr = self._parse_address(program, address)
+        if addr is None:
+            return {"success": False, "error": f"Invalid address: {address}"}
+
+        sym_table = program.getSymbolTable()
+        existing = sym_table.getPrimarySymbol(addr)
+        old_name = existing.getName() if existing else ""
+
+        txid = program.startTransaction("Rename label")
+        try:
+            if existing and not existing.isDynamic():
+                existing.setName(new_name, SourceType.USER_DEFINED)
+            else:
+                sym_table.createLabel(addr, new_name, SourceType.USER_DEFINED)
+            program.endTransaction(txid, True)
+            return {
+                "success": True,
+                "address": address,
+                "old_name": old_name,
+                "new_name": new_name,
+            }
+        except Exception as e:
+            program.endTransaction(txid, False)
+            return {"success": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _find_function_by_name(self, program, name: str):
+        """Find a function by name (linear scan).
+
+        Returns a Ghidra Function or None.
+        """
+        func_mgr = program.getFunctionManager()
+        for func in func_mgr.getFunctions(True):
+            if func.getName() == name:
+                return func
+        return None
 
     def _parse_address(self, program, address: str):
         """Parse a hex address string into a Ghidra Address object.

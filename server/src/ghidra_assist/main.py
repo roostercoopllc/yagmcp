@@ -86,7 +86,7 @@ def create_app() -> FastMCP:
     mcp = FastMCP(
         name="yagmcp",
         instructions=(
-            "This MCP server exposes Ghidra reverse-engineering analysis tools.\n\n"
+            "This MCP server exposes Ghidra reverse-engineering analysis and modification tools.\n\n"
             "Available capabilities:\n"
             "- List repositories and programs (list_repos, get_program_info)\n"
             "- List and search functions (list_functions, get_function)\n"
@@ -97,7 +97,9 @@ def create_app() -> FastMCP:
             "- Import/export listing (list_imports, list_exports)\n"
             "- Memory map and raw byte reading (memory_map, read_bytes)\n"
             "- Data type listing (list_data_types)\n"
-            "- Comment retrieval (get_comments)\n"
+            "- Comment retrieval and creation (get_comments, set_comment)\n"
+            "- Rename functions, variables, and labels (rename_function, rename_variable, rename_label)\n"
+            "- Patch bytes in memory (patch_bytes)\n"
             "- LLM-assisted chat (chat_with_ollama)\n"
         ),
     )

@@ -29,6 +29,7 @@ _TOOL_MODULES = [
     "ghidra_assist.tools.strings",
     "ghidra_assist.tools.data_types",
     "ghidra_assist.tools.comments",
+    "ghidra_assist.tools.modifications",
     "ghidra_assist.tools.chat",
 ]
 

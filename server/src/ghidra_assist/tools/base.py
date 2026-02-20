@@ -27,6 +27,7 @@ class ToolCategory(str, Enum):
     NAVIGATION = "navigation"
     DATA = "data"
     CHAT = "chat"
+    MODIFICATION = "modification"
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +168,17 @@ class ProgramSummary(BaseModel):
     image_base: str = ""
     executable_format: str = ""
     memory_blocks: int = 0
+
+
+class ModificationResult(BaseModel):
+    """Result of a program modification (rename, patch, comment)."""
+
+    success: bool
+    message: str
+    tool: str = ""
+    target: str = ""
+    old_value: str = ""
+    new_value: str = ""
 
 
 # ---------------------------------------------------------------------------
