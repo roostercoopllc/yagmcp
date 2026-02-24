@@ -545,3 +545,79 @@ class TestCompareBinaries(TestToolTemplate):
         # Should handle empty function lists gracefully (returns error ToolResult)
         assert isinstance(result, (dict, ToolResult))
         assert hasattr(result, 'success') or isinstance(result, dict)
+
+
+class TestAnalyzeCallGraph(TestToolTemplate):
+    """Test AnalyzeCallGraph tool."""
+
+    @pytest.mark.asyncio
+    async def test_analyze_call_graph_all_functions(self, mock_cache):
+        """Test analyzing call graph for all functions."""
+        from ghidra_assist.tools.call_graph import AnalyzeCallGraph
+
+        # Mock function list
+        mock_cache.bridge.list_functions.return_value = [
+            {"name": "main", "address": "0x401000"},
+            {"name": "process_data", "address": "0x401100"},
+            {"name": "helper", "address": "0x401200"},
+        ]
+
+        # Mock xrefs (call relationships)
+        def xrefs_side_effect(prog, func_name):
+            if func_name == "main":
+                return [
+                    {"to_addr": "process_data", "ref_type": "call", "is_call": True},
+                    {"to_addr": "helper", "ref_type": "call", "is_call": True},
+                ]
+            elif func_name == "process_data":
+                return [
+                    {"to_addr": "helper", "ref_type": "call", "is_call": True},
+                ]
+            return []
+
+        mock_cache.bridge.get_xrefs_from.side_effect = xrefs_side_effect
+
+        tool = AnalyzeCallGraph()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="test.exe"
+        )
+
+        self.assert_success(result)
+        assert result["function_count"] > 0
+        assert "nodes" in result
+        assert "edges" in result
+        assert "critical_functions" in result
+        assert "graph_metrics" in result
+
+    @pytest.mark.asyncio
+    async def test_analyze_call_graph_from_root(self, mock_cache):
+        """Test analyzing call graph from specific function."""
+        from ghidra_assist.tools.call_graph import AnalyzeCallGraph
+
+        mock_cache.bridge.list_functions.return_value = [
+            {"name": "main", "address": "0x401000"},
+            {"name": "helper", "address": "0x401200"},
+        ]
+
+        def xrefs_side_effect(prog, func_name):
+            if func_name == "main":
+                return [
+                    {"to_addr": "helper", "ref_type": "call", "is_call": True},
+                ]
+            return []
+
+        mock_cache.bridge.get_xrefs_from.side_effect = xrefs_side_effect
+
+        tool = AnalyzeCallGraph()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="test.exe",
+            root_function="main",
+            max_depth=3
+        )
+
+        self.assert_success(result)
+        assert result["root_function"] == "main"
+        assert "edges" in result
+        assert "cycles" in result

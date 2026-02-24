@@ -38,6 +38,7 @@ _TOOL_MODULES = [
     "ghidra_assist.tools.pattern_detector",
     "ghidra_assist.tools.type_inference",
     "ghidra_assist.tools.binary_compare",
+    "ghidra_assist.tools.call_graph",
     "ghidra_assist.tools.chat",
 ]
 

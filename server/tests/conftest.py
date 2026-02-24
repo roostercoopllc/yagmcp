@@ -172,6 +172,7 @@ def mock_get_cache(mock_cache, monkeypatch):
     import ghidra_assist.tools.pattern_detector
     import ghidra_assist.tools.type_inference
     import ghidra_assist.tools.binary_compare
+    import ghidra_assist.tools.call_graph
 
     for module in [
         ghidra_assist.tools.programs,
@@ -189,6 +190,7 @@ def mock_get_cache(mock_cache, monkeypatch):
         ghidra_assist.tools.pattern_detector,
         ghidra_assist.tools.type_inference,
         ghidra_assist.tools.binary_compare,
+        ghidra_assist.tools.call_graph,
     ]:
         monkeypatch.setattr(module, "_get_cache", lambda: mock_cache)
 
