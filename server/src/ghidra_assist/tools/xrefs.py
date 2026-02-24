@@ -44,14 +44,8 @@ class GetXrefsTo(BaseTool):
     name = "get_xrefs_to"
     description = "Get all cross-references pointing to a given address."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
+    async def execute(self, repository: str, program: str, address: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()
@@ -102,15 +96,8 @@ class GetXrefsFrom(BaseTool):
     name = "get_xrefs_from"
     description = "Get all cross-references originating from a function or address."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
+    async def execute(self, repository: str, program: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -216,16 +203,8 @@ class GetCallGraph(BaseTool):
         "specified depth."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
-        depth: int = int(kwargs.get("depth", 2))
+    async def execute(self, repository: str, program: str, function_name: str = "", address: str = "", depth: int = 2) -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(

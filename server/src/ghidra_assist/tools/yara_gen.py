@@ -70,16 +70,8 @@ class GenerateYara(BaseTool):
     )
     category = ToolCategory.ANALYSIS
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        rule_name: str = kwargs.get("rule_name", "")
-        focus: str = kwargs.get("focus", "all")  # strings, imports, bytes, all
-        max_strings: int = int(kwargs.get("max_strings", 10))
+    async def execute(self, repository: str, program: str, rule_name: str = "", focus: str = "all", max_strings: int = 10, model: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()
@@ -158,7 +150,7 @@ class GenerateYara(BaseTool):
             )
 
             # ---- Call Ollama to generate the rule ------------------------
-            model = kwargs.get("model") or settings.ollama_model
+            actual_model = model or settings.ollama_model
             rule_text = ""
             llm_error = ""
 
@@ -167,7 +159,7 @@ class GenerateYara(BaseTool):
                     resp = await client.post(
                         f"{settings.ollama_url}/api/generate",
                         json={
-                            "model": model,
+                            "model": actual_model,
                             "prompt": llm_prompt,
                             "stream": False,
                         },

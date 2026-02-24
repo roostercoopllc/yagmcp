@@ -37,15 +37,8 @@ class GetComments(BaseTool):
         "or at a specific address."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
+    async def execute(self, repository: str, program: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -91,15 +84,8 @@ class SearchComments(BaseTool):
     name = "search_comments"
     description = "Search all comments in a program by text pattern (regex)."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "pattern")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        pattern: str = kwargs["pattern"]
-        limit: int = int(kwargs.get("limit", 50))
+    async def execute(self, repository: str, program: str, pattern: str, limit: int = 50) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             regex = re.compile(pattern, re.IGNORECASE)

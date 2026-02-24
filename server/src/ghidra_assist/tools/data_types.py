@@ -35,15 +35,9 @@ class ListDataTypes(BaseTool):
     name = "list_data_types"
     description = "List defined data types (structs, enums, typedefs) in a program."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        pattern: str = kwargs.get("filter", "")
-        category: str = kwargs.get("category", "")
+    async def execute(self, repository: str, program: str, filter: str = "", category: str = "") -> Dict[str, Any]:
+        program_name: str = program
+        pattern: str = filter
 
         try:
             cache = _get_cache()
@@ -100,13 +94,8 @@ class GetMemoryMap(BaseTool):
     name = "get_memory_map"
     description = "Get the program's memory segments with read/write/execute permissions."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
+    async def execute(self, repository: str, program: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()
@@ -154,15 +143,9 @@ class ReadBytes(BaseTool):
         "Maximum 1024 bytes per request."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
-        length: int = min(int(kwargs.get("length", 64)), 1024)
+    async def execute(self, repository: str, program: str, address: str, length: int = 64) -> Dict[str, Any]:
+        program_name: str = program
+        length = min(length, 1024)
 
         try:
             cache = _get_cache()

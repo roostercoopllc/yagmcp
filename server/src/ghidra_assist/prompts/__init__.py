@@ -23,7 +23,7 @@ class BasePrompt(Protocol):
     name: str
     description: str
 
-    def render(self, **kwargs: Any) -> str:
+    def render(self) -> str:
         """Return the fully-rendered prompt string."""
         ...
 

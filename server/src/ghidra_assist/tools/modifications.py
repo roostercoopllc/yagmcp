@@ -50,16 +50,8 @@ class RenameFunction(BaseTool):
     )
     category = ToolCategory.MODIFICATION
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "new_name")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
-        new_name: str = kwargs["new_name"]
+    async def execute(self, repository: str, program: str, new_name: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -107,19 +99,8 @@ class RenameVariable(BaseTool):
     )
     category = ToolCategory.MODIFICATION
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(
-            kwargs, "repository", "program", "old_name", "new_name"
-        )
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
-        old_name: str = kwargs["old_name"]
-        new_name: str = kwargs["new_name"]
+    async def execute(self, repository: str, program: str, old_name: str, new_name: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -169,16 +150,8 @@ class SetComment(BaseTool):
     )
     category = ToolCategory.MODIFICATION
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address", "comment")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
-        comment: str = kwargs["comment"]
-        comment_type: str = kwargs.get("comment_type", "eol")
+    async def execute(self, repository: str, program: str, address: str, comment: str, comment_type: str = "eol") -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()
@@ -222,15 +195,8 @@ class PatchBytes(BaseTool):
     )
     category = ToolCategory.MODIFICATION
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address", "hex_bytes")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
-        hex_bytes: str = kwargs["hex_bytes"]
+    async def execute(self, repository: str, program: str, address: str, hex_bytes: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()
@@ -273,15 +239,8 @@ class RenameLabel(BaseTool):
     )
     category = ToolCategory.MODIFICATION
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address", "new_name")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
-        new_name: str = kwargs["new_name"]
+    async def execute(self, repository: str, program: str, address: str, new_name: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()

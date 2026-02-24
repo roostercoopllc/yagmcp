@@ -35,20 +35,21 @@ logger = logging.getLogger(__name__)
 def instrument_tool(tool_name: str):
     """Decorator that wraps a tool's execute method for logging/metrics.
 
-    Uses ``@wraps`` so that ``inspect.signature()`` follows ``__wrapped__``
-    and FastMCP sees the real typed parameter signature.
+    Explicitly sets __signature__ so FastMCP can introspect the real signature.
     """
 
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args):
             logger.debug("Tool invoked: %s", tool_name)
             try:
-                return await func(*args, **kwargs)
+                return await func(*args)
             except Exception:
                 logger.exception("Tool %s failed", tool_name)
                 raise
 
+        # Explicitly set __signature__ so FastMCP can introspect correctly
+        wrapper.__signature__ = inspect.signature(func)
         return wrapper
 
     return decorator
@@ -115,16 +116,12 @@ def create_app() -> FastMCP:
     for tool_cls in get_all_tools():
         tool = tool_cls()
 
-        # Apply instrumentation directly to the execute method.
-        # @wraps inside instrument_tool sets __wrapped__ = tool.execute.
-        # inspect.signature() follows __wrapped__ by default, so FastMCP
-        # sees the real typed parameter signature rather than **kwargs.
-        instrumented = instrument_tool(tool.name)(tool.execute)
-
+        # Register the execute method directly without wrapper.
+        # FastMCP will inspect tool.execute's signature which has explicit parameters.
         mcp.tool(
             name=tool.name,
             description=tool.description,
-        )(instrumented)
+        )(tool.execute)
         logger.info("  Registered tool: %s", tool.name)
 
     # ------------------------------------------------------------------

@@ -24,7 +24,7 @@ class BaseResource(Protocol):
     name: str
     description: str
 
-    async def read(self, **kwargs: Any) -> Dict[str, Any]:
+    async def read(self) -> Dict[str, Any]:
         """Return the resource data as a JSON-serialisable dict."""
         ...
 

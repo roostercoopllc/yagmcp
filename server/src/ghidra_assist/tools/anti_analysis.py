@@ -117,14 +117,8 @@ class DetectAntiAnalysis(BaseTool):
     )
     category = ToolCategory.ANALYSIS
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        include_xrefs: bool = kwargs.get("include_xrefs", True)
+    async def execute(self, repository: str, program: str, include_xrefs: bool = True) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()

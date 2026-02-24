@@ -25,28 +25,26 @@ class GhidraChat(BaseTool):
         "get_xrefs_to, list_strings, etc. to answer your question."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        message: str | None = kwargs.get("message")
+    async def execute(self, message: str, repository: str = "", program: str = "", function_name: str = "", function_address: str = "", address: str = "", decompilation: str = "", selection: str = "", conversation_id: str = "", model: str = "") -> Dict[str, Any]:
         if not message:
             return self._error("Missing required parameter: 'message'")
 
         # Build context from provided parameters
         context: Dict[str, str] = {}
-        for key in (
-            "repository",
-            "program",
-            "function_name",
-            "function_address",
-            "address",
-            "decompilation",
-            "selection",
-        ):
-            val = kwargs.get(key)
+        for key, val in [
+            ("repository", repository),
+            ("program", program),
+            ("function_name", function_name),
+            ("function_address", function_address),
+            ("address", address),
+            ("decompilation", decompilation),
+            ("selection", selection),
+        ]:
             if val:
                 context[key] = str(val)
 
-        conversation_id: str = kwargs.get("conversation_id", str(uuid.uuid4()))
-        model: str | None = kwargs.get("model")
+        actual_conversation_id: str = conversation_id or str(uuid.uuid4())
+        actual_model: str | None = model or None
 
         try:
             # Lazy import to avoid circular dependency (chat_agent imports tools)
@@ -55,14 +53,14 @@ class GhidraChat(BaseTool):
             result = await chat(
                 message=message,
                 context=context,
-                conversation_id=conversation_id,
-                model=model,
+                conversation_id=actual_conversation_id,
+                model=actual_model,
             )
 
             return {
                 "response": result.get("response", ""),
                 "tools_called": result.get("tools_called", []),
-                "conversation_id": result.get("conversation_id", conversation_id),
+                "conversation_id": result.get("conversation_id", actual_conversation_id),
             }
 
         except Exception as exc:

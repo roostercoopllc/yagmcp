@@ -8,7 +8,7 @@ Tools:
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Dict
 
 from ghidra_assist.project_cache import ProjectCache
 from ghidra_assist.tools import register_tool
@@ -35,7 +35,7 @@ class ListRepositories(BaseTool):
     name = "list_repositories"
     description = "List all Ghidra repository directories available on the server."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
+    async def execute(self) -> Dict[str, Any]:
         try:
             cache = _get_cache()
             repos = cache.list_repos()
@@ -73,13 +73,7 @@ class ListPrograms(BaseTool):
     name = "list_programs"
     description = "List all programs in a Ghidra repository with metadata."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-
+    async def execute(self, repository: str) -> Dict[str, Any]:
         try:
             cache = _get_cache()
             raw_programs = cache.list_programs(repository)
@@ -117,13 +111,8 @@ class GetProgramInfo(BaseTool):
         "language, compiler, entry point, and memory layout."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
+    async def execute(self, repository: str, program: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()

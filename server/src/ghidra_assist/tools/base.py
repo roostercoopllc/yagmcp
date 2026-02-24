@@ -211,7 +211,7 @@ class BaseTool(abc.ABC):
         self.logger = logging.getLogger(f"ghidra_assist.tools.{self.name}")
 
     @abc.abstractmethod
-    async def execute(self, **kwargs: Any) -> ToolResult | BaseModel | Dict[str, Any]:
+    async def execute(self) -> ToolResult | BaseModel | Dict[str, Any]:
         """Execute the tool and return a typed result.
 
         Concrete implementations should declare explicit typed parameters

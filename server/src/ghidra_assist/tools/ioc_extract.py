@@ -95,14 +95,8 @@ class ExtractIOCs(BaseTool):
     )
     category = ToolCategory.ANALYSIS
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        min_length: int = int(kwargs.get("min_length", 4))
+    async def execute(self, repository: str, program: str, min_length: int = 4) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()

@@ -38,17 +38,9 @@ class ListStrings(BaseTool):
         "and minimum length. Returns paginated results."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        pattern: str = kwargs.get("filter", "")
-        min_length: int = int(kwargs.get("min_length", 4))
-        offset: int = int(kwargs.get("offset", 0))
-        limit: int = int(kwargs.get("limit", 100))
+    async def execute(self, repository: str, program: str, filter: str = "", min_length: int = 4, offset: int = 0, limit: int = 100) -> Dict[str, Any]:
+        program_name: str = program
+        pattern: str = filter
 
         try:
             cache = _get_cache()
@@ -103,14 +95,9 @@ class ListImports(BaseTool):
     name = "list_imports"
     description = "List imported functions with library names."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        pattern: str = kwargs.get("filter", "")
+    async def execute(self, repository: str, program: str, filter: str = "") -> Dict[str, Any]:
+        program_name: str = program
+        pattern: str = filter
 
         try:
             cache = _get_cache()
@@ -158,13 +145,8 @@ class ListExports(BaseTool):
     name = "list_exports"
     description = "List exported symbols from a program."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
+    async def execute(self, repository: str, program: str) -> Dict[str, Any]:
+        program_name: str = program
 
         try:
             cache = _get_cache()

@@ -47,16 +47,9 @@ class ListFunctions(BaseTool):
     name = "list_functions"
     description = "List functions in a program with optional regex filter and pagination."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        name_filter: str | None = kwargs.get("filter")
-        offset: int = int(kwargs.get("offset", 0))
-        limit: int = int(kwargs.get("limit", 100))
+    async def execute(self, repository: str, program: str, filter: str = "", offset: int = 0, limit: int = 100) -> Dict[str, Any]:
+        program_name: str = program
+        name_filter: str | None = filter
 
         try:
             cache = _get_cache()
@@ -112,15 +105,8 @@ class DecompileFunction(BaseTool):
     name = "decompile_function"
     description = "Decompile a function to C pseudocode by name or address."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
+    async def execute(self, repository: str, program: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -186,15 +172,8 @@ class GetFunctionSignature(BaseTool):
     name = "get_function_signature"
     description = "Retrieve the full type signature of a function."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        function_name: str | None = kwargs.get("function_name")
-        address: str | None = kwargs.get("address")
+    async def execute(self, repository: str, program: str, function_name: str = "", address: str = "") -> Dict[str, Any]:
+        program_name: str = program
 
         if not function_name and not address:
             return self._error(
@@ -264,15 +243,8 @@ class GetDisassembly(BaseTool):
     name = "get_disassembly"
     description = "Disassemble instructions at a given address."
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "address")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        address: str = kwargs["address"]
-        count: int = int(kwargs.get("count", 20))
+    async def execute(self, repository: str, program: str, address: str, count: int = 20) -> Dict[str, Any]:
+        program_name: str = program
 
         if count < 1:
             return self._error("count must be at least 1.")
@@ -326,16 +298,9 @@ class SearchFunctions(BaseTool):
         "Search functions by regex pattern in function names or decompiled output."
     )
 
-    async def execute(self, **kwargs: Any) -> Dict[str, Any]:
-        err = self._require_params(kwargs, "repository", "program", "pattern")
-        if err:
-            return err
-
-        repository: str = kwargs["repository"]
-        program_name: str = kwargs["program"]
-        pattern_str: str = kwargs["pattern"]
-        search_in: str = kwargs.get("search_in", "name")
-        limit: int = int(kwargs.get("limit", 50))
+    async def execute(self, repository: str, program: str, pattern: str, search_in: str = "name", limit: int = 50) -> Dict[str, Any]:
+        program_name: str = program
+        pattern_str: str = pattern
 
         if search_in not in ("name", "decompiled"):
             return self._error(
