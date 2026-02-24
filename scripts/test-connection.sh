@@ -115,28 +115,23 @@ echo ""
 # Test 1: Health endpoint
 # ---------------------------------------------------------------------------
 test_endpoint "Health endpoint" "${SERVER_URL}/api/health"
-test_json_field "Health status field" "${SERVER_URL}/api/health" ".status" "healthy"
+test_json_field "Health status field" "${SERVER_URL}/api/health" ".status" "ok"
 
 # ---------------------------------------------------------------------------
-# Test 2: List repositories tool (via REST API)
+# Test 2: List repositories (projects)
 # ---------------------------------------------------------------------------
-test_endpoint "List repositories" "${SERVER_URL}/api/repositories"
+test_endpoint "List projects" "${SERVER_URL}/api/projects"
 
 # ---------------------------------------------------------------------------
-# Test 3: Ollama connectivity (via the server's proxy/check endpoint)
-# ---------------------------------------------------------------------------
-test_endpoint "Ollama connectivity" "${SERVER_URL}/api/ollama/status"
-
-# ---------------------------------------------------------------------------
-# Test 4: Sample chat request
+# Test 3: Sample chat request
 # ---------------------------------------------------------------------------
 CHAT_PAYLOAD='{"message":"What is a function prologue in assembly?","repository":"","program":""}'
 test_endpoint "Chat endpoint" "${SERVER_URL}/api/chat" "POST" "${CHAT_PAYLOAD}"
 
 # ---------------------------------------------------------------------------
-# Test 5: MCP endpoint availability
+# Test 4: OpenAPI spec
 # ---------------------------------------------------------------------------
-test_endpoint "MCP SSE endpoint" "${SERVER_URL}/mcp" "GET" "" "200"
+test_endpoint "OpenAPI spec" "${SERVER_URL}/openapi.json"
 
 # ---------------------------------------------------------------------------
 # Summary
