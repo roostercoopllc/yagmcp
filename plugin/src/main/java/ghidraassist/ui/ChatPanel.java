@@ -89,7 +89,7 @@ public class ChatPanel extends JPanel {
         this.client = client;
         this.contextTracker = contextTracker;
         this.tool = tool;
-        this.currentProgram = tool.getCurrentProgram();
+        this.currentProgram = null; // Will be set when program opens
 
         // Initialize colors from the selected palette
         applyColorPalette(settings.getColorPalette());
@@ -217,30 +217,14 @@ public class ChatPanel extends JPanel {
         }
 
         try {
-            // Store current location for restoration after reload
-            ProgramLocation currentLocation = null;
+            // Flush events to disk (Ghidra 12.0.3)
             try {
-                // Try to get current location from the tool's clipboard
-                Object clipboardContent = tool.getProject().getToolManager().getToolComponentProvider("ByteViewer");
-                // Note: exact method varies by Ghidra version
+                if (currentProgram != null) {
+                    currentProgram.flushEvents();
+                    addMessage("system", "✓ Program events flushed. Changes are now visible.");
+                }
             } catch (Exception e) {
-                // Ignore - just use program start if we can't get current location
-            }
-
-            // Close and reopen the program from disk (triggers full refresh)
-            String programPath = currentProgram.getExecutablePath();
-            currentProgram.flushEvents();
-            tool.closeProgram(currentProgram, true);
-
-            // Brief delay to ensure close completes
-            Thread.sleep(200);
-
-            // Reopen the program
-            try {
-                tool.getProject().openProgram(programPath, true);
-                addMessage("system", "✓ Program reloaded. Changes are now visible.");
-            } catch (Exception e) {
-                addMessage("system", "Error reopening program: " + e.getMessage());
+                addMessage("system", "Error flushing program: " + e.getMessage());
             }
 
             changeTracker.clearChanges();

@@ -132,7 +132,7 @@ public class CallGraphPanel extends JPanel {
         chatPanel.sendQuery(query);
 
         // Re-enable after a delay (chat will process the result)
-        Timer timer = new Timer(1000, e -> analyzeButton.setEnabled(true));
+        javax.swing.Timer timer = new javax.swing.Timer(1000, e -> analyzeButton.setEnabled(true));
         timer.setRepeats(false);
         timer.start();
     }
