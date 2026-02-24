@@ -20,6 +20,7 @@ public class SettingsDialog extends JDialog {
     private JTextField serverUrlField;
     private JComboBox<String> modelComboBox;
     private JButton refreshModelsButton;
+    private JCheckBox autoReloadCheckBox;
     private JLabel statusLabel;
     private JButton testButton;
     private JButton saveButton;
@@ -79,8 +80,17 @@ public class SettingsDialog extends JDialog {
         fieldGbc.gridy = 1;
         form.add(modelPanel, fieldGbc);
 
-        // Test connection row
+        // Auto-reload checkbox
         labelGbc.gridy = 2;
+        form.add(new JLabel(""), labelGbc);
+        autoReloadCheckBox = new JCheckBox("Auto-reload program on changes (hot-reload)");
+        autoReloadCheckBox.setSelected(settings.isAutoReload());
+        autoReloadCheckBox.setToolTipText("When enabled, program automatically reloads when MCP tools modify it. When disabled, you must manually reload.");
+        fieldGbc.gridy = 2;
+        form.add(autoReloadCheckBox, fieldGbc);
+
+        // Test connection row
+        labelGbc.gridy = 3;
         form.add(new JLabel(""), labelGbc);
 
         JPanel testPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -89,7 +99,7 @@ public class SettingsDialog extends JDialog {
         statusLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
         testPanel.add(testButton);
         testPanel.add(statusLabel);
-        fieldGbc.gridy = 2;
+        fieldGbc.gridy = 3;
         form.add(testPanel, fieldGbc);
 
         content.add(form, BorderLayout.CENTER);
@@ -216,6 +226,7 @@ public class SettingsDialog extends JDialog {
 
         settings.setServerUrl(url);
         settings.setModelName(model);
+        settings.setAutoReload(autoReloadCheckBox.isSelected());
 
         // Also update the live client
         client.setServerUrl(url);

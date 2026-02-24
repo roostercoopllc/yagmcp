@@ -17,18 +17,21 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String OPT_AUTO_CONTEXT = "Auto-Include Context";
     private static final String OPT_CONTEXT_MODE = "Context Mode";
     private static final String OPT_MAX_HISTORY = "Max History";
+    private static final String OPT_AUTO_RELOAD = "Auto-Reload on Changes";
 
     private static final String DEFAULT_SERVER_URL = "http://192.168.0.167:8889";
     private static final String DEFAULT_MODEL_NAME = "qwen2.5-coder:7b";
     private static final boolean DEFAULT_AUTO_CONTEXT = true;
     private static final String DEFAULT_CONTEXT_MODE = "function";
     private static final int DEFAULT_MAX_HISTORY = 50;
+    private static final boolean DEFAULT_AUTO_RELOAD = true;
 
     private String serverUrl;
     private String modelName;
     private boolean autoIncludeContext;
     private String contextMode;
     private int maxHistory;
+    private boolean autoReload;
 
     private final ToolOptions options;
     private SettingsChangeCallback changeCallback;
@@ -59,6 +62,8 @@ public class GhidraAssistSettings implements OptionsChangeListener {
                 "Context mode: function, selection, or both");
         options.registerOption(OPT_MAX_HISTORY, DEFAULT_MAX_HISTORY, null,
                 "Maximum number of messages to keep in conversation history");
+        options.registerOption(OPT_AUTO_RELOAD, DEFAULT_AUTO_RELOAD, null,
+                "Automatically reload program when MCP tools make changes (hot-reload)");
     }
 
     private void loadAll() {
@@ -67,6 +72,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         autoIncludeContext = options.getBoolean(OPT_AUTO_CONTEXT, DEFAULT_AUTO_CONTEXT);
         contextMode = options.getString(OPT_CONTEXT_MODE, DEFAULT_CONTEXT_MODE);
         maxHistory = options.getInt(OPT_MAX_HISTORY, DEFAULT_MAX_HISTORY);
+        autoReload = options.getBoolean(OPT_AUTO_RELOAD, DEFAULT_AUTO_RELOAD);
     }
 
     @Override
@@ -100,6 +106,10 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         return maxHistory;
     }
 
+    public boolean isAutoReload() {
+        return autoReload;
+    }
+
     // --- Mutators (also persist to tool options) ---
 
     public void setServerUrl(String url) {
@@ -125,6 +135,11 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     public void setMaxHistory(int max) {
         this.maxHistory = max;
         options.setInt(OPT_MAX_HISTORY, max);
+    }
+
+    public void setAutoReload(boolean autoReload) {
+        this.autoReload = autoReload;
+        options.setBoolean(OPT_AUTO_RELOAD, autoReload);
     }
 
     public void setChangeCallback(SettingsChangeCallback callback) {

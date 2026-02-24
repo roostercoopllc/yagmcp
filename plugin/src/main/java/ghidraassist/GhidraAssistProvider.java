@@ -37,10 +37,10 @@ public class GhidraAssistProvider extends ComponentProvider {
         setDefaultWindowPosition(docking.WindowPosition.RIGHT);
         setVisible(true);
 
-        // Build the chat panel
+        // Build the chat panel (pass plugin tool for auto-reload capability)
         GhidraAssistSettings settings = new GhidraAssistSettings(plugin.getTool());
         GhidraAssistClient client = new GhidraAssistClient(settings.getServerUrl(), settings.getModelName());
-        chatPanel = new ChatPanel(settings, client, contextTracker);
+        chatPanel = new ChatPanel(settings, client, contextTracker, plugin.getTool());
 
         // Show initial system message
         chatPanel.addMessage("system", "YAGMCP ready. Open a program and start chatting.");
@@ -55,6 +55,7 @@ public class GhidraAssistProvider extends ComponentProvider {
      * Called when a program is opened.
      */
     public void programOpened(Program program) {
+        chatPanel.setCurrentProgram(program);
         chatPanel.addMessage("system","Program opened: " + program.getName());
     }
 
@@ -62,6 +63,7 @@ public class GhidraAssistProvider extends ComponentProvider {
      * Called when a program is closed.
      */
     public void programClosed(Program program) {
+        chatPanel.setCurrentProgram(null);
         chatPanel.addMessage("system","Program closed: " + program.getName());
     }
 
@@ -69,6 +71,7 @@ public class GhidraAssistProvider extends ComponentProvider {
      * Called when the active program changes.
      */
     public void programActivated(Program program) {
+        chatPanel.setCurrentProgram(program);
         chatPanel.addMessage("system","Active program: " + program.getName());
     }
 
