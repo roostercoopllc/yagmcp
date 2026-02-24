@@ -43,7 +43,7 @@ Tests for binary analysis and detection tools:
 
 ### Install test dependencies:
 ```bash
-pip install -e ".[dev]"  # From server/ directory
+uv sync --all-groups  # From server/ directory (uses uv.lock for reproducible builds)
 ```
 
 ### Run all tests:
@@ -176,7 +176,7 @@ Run tests automatically before deployment:
 
 ```bash
 cd server/
-pip install -e ".[dev]"
+uv sync --all-groups
 pytest --tb=short && echo "✓ All tests passed"
 ```
 
@@ -229,4 +229,4 @@ When adding new tools:
 
 ### Import errors for tools
 - Ensure tool is exported from `__init__.py`
-- Check that all dependencies are installed: `pip install -e ".[dev]"`
+- Check that all dependencies are installed: `uv sync --all-groups`

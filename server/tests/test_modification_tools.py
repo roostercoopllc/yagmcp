@@ -9,7 +9,7 @@ Tests verify that:
 
 import pytest
 from unittest.mock import MagicMock, call
-from conftest import TestToolTemplate
+from tests import TestToolTemplate
 
 # Import tools
 from ghidra_assist.tools.modifications import (
