@@ -157,6 +157,8 @@ def mock_get_cache(mock_cache, monkeypatch):
     import ghidra_assist.tools.ioc_extract
     import ghidra_assist.tools.anti_analysis
     import ghidra_assist.tools.yara_gen
+    import ghidra_assist.tools.string_tracker
+    import ghidra_assist.tools.pattern_detector
 
     for module in [
         ghidra_assist.tools.programs,
@@ -170,6 +172,8 @@ def mock_get_cache(mock_cache, monkeypatch):
         ghidra_assist.tools.ioc_extract,
         ghidra_assist.tools.anti_analysis,
         ghidra_assist.tools.yara_gen,
+        ghidra_assist.tools.string_tracker,
+        ghidra_assist.tools.pattern_detector,
     ]:
         monkeypatch.setattr(module, "_get_cache", lambda: mock_cache)
 

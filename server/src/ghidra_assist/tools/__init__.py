@@ -34,6 +34,8 @@ _TOOL_MODULES = [
     "ghidra_assist.tools.ioc_extract",
     "ghidra_assist.tools.anti_analysis",
     "ghidra_assist.tools.yara_gen",
+    "ghidra_assist.tools.string_tracker",
+    "ghidra_assist.tools.pattern_detector",
     "ghidra_assist.tools.chat",
 ]
 

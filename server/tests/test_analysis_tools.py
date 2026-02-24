@@ -296,3 +296,108 @@ class TestGetMemoryMap(TestToolTemplate):
         self.assert_success(result)
         assert len(result["segments"]) == 2
         assert result["segments"][0]["name"] == ".text"
+
+
+class TestTraceStringReferences(TestToolTemplate):
+    """Test TraceStringReferences tool."""
+
+    @pytest.mark.asyncio
+    async def test_trace_simple_string(self, mock_cache):
+        """Test tracing references to a simple string."""
+        from ghidra_assist.tools.string_tracker import TraceStringReferences
+
+        mock_cache.bridge.list_strings.return_value = [
+            {"value": "malicious.com", "address": "0x405000"},
+            {"value": "config.ini", "address": "0x405020"},
+        ]
+        mock_cache.bridge.get_xrefs_to.return_value = [
+            {"address": "0x401234", "function_name": "connect_c2", "type": "read"},
+            {"address": "0x401567", "function_name": "init_network", "type": "read"},
+        ]
+        mock_cache.bridge.decompile_function.return_value = "void connect_c2() { // sends to malicious.com }"
+
+        tool = TraceStringReferences()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="malware.exe",
+            search_string="malicious.com"
+        )
+
+        self.assert_success(result)
+        assert result["total_references"] == 2
+        assert "malicious.com" in result["string_value"]
+        assert len(result["functions_involved"]) > 0
+
+    @pytest.mark.asyncio
+    async def test_trace_string_not_found(self, mock_cache):
+        """Test tracing a string that doesn't exist."""
+        from ghidra_assist.tools.string_tracker import TraceStringReferences
+
+        mock_cache.bridge.list_strings.return_value = [
+            {"value": "normal_string", "address": "0x405000"},
+        ]
+
+        tool = TraceStringReferences()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="program.exe",
+            search_string="nonexistent_string"
+        )
+
+        self.assert_success(result)
+        assert result["total_references"] == 0
+        assert result["impact_summary"] == "No matching strings found."
+
+
+class TestDetectCodePatterns(TestToolTemplate):
+    """Test DetectCodePatterns tool."""
+
+    @pytest.mark.asyncio
+    async def test_detect_crypto_patterns(self, mock_cache):
+        """Test detecting crypto patterns."""
+        from ghidra_assist.tools.pattern_detector import DetectCodePatterns
+
+        # Mock strings that contain crypto-related content
+        mock_cache.bridge.list_strings.return_value = [
+            {"value": "0x67452301", "address": "0x405000"},  # SHA-1 constant
+            {"value": "normal_string", "address": "0x405020"},
+        ]
+        mock_cache.bridge.list_imports.return_value = [
+            {"name": "OpenSSL", "address": "0x400000"},
+        ]
+
+        tool = DetectCodePatterns()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="encrypted.exe",
+            pattern_category="crypto"
+        )
+
+        self.assert_success(result)
+        assert result["patterns_found"] >= 0
+        assert "category_summary" in result
+        assert "iocs_extracted" in result
+
+    @pytest.mark.asyncio
+    async def test_detect_network_patterns(self, mock_cache):
+        """Test detecting network patterns."""
+        from ghidra_assist.tools.pattern_detector import DetectCodePatterns
+
+        mock_cache.bridge.list_strings.return_value = [
+            {"value": "POST /api/beacon HTTP/1.1", "address": "0x405000"},
+            {"value": "User-Agent: Custom", "address": "0x405050"},
+        ]
+        mock_cache.bridge.list_imports.return_value = [
+            {"name": "WinHTTP.dll", "address": "0x400000"},
+        ]
+
+        tool = DetectCodePatterns()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="c2.exe",
+            pattern_category="network"
+        )
+
+        self.assert_success(result)
+        assert "matches" in result
+        assert "iocs_extracted" in result
