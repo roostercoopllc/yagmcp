@@ -1,6 +1,8 @@
 // YAGMCP GhidraAssist Plugin — Ghidra Extension Build
 // Build with:  gradle -PGHIDRA_INSTALL_DIR=/path/to/ghidra buildExtension
 
+version = '12.0.3'
+
 apply plugin: 'java'
 
 def ghidraInstallDir = project.findProperty("GHIDRA_INSTALL_DIR") ?: System.env.GHIDRA_INSTALL_DIR
