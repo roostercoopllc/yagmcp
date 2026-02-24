@@ -8,10 +8,12 @@
 package ghidraassist;
 
 import javax.swing.JComponent;
+import javax.swing.JTabbedPane;
 
 import docking.ComponentProvider;
 import ghidra.program.model.listing.Program;
 import ghidraassist.ui.ChatPanel;
+import ghidraassist.ui.CallGraphPanel;
 
 /**
  * ComponentProvider that hosts the YAGMCP chat panel as a dockable
@@ -25,6 +27,8 @@ public class GhidraAssistProvider extends ComponentProvider {
     private final GhidraAssistPlugin plugin;
     private final GhidraAssistContextTracker contextTracker;
     private final ChatPanel chatPanel;
+    private final CallGraphPanel callGraphPanel;
+    private final JTabbedPane tabbedPane;
 
     public GhidraAssistProvider(GhidraAssistPlugin plugin,
             GhidraAssistContextTracker contextTracker) {
@@ -44,11 +48,19 @@ public class GhidraAssistProvider extends ComponentProvider {
 
         // Show initial system message
         chatPanel.addMessage("system", "YAGMCP ready. Open a program and start chatting.");
+
+        // Build the call graph panel
+        callGraphPanel = new CallGraphPanel(chatPanel);
+
+        // Create tabbed pane with Chat and Call Graph tabs
+        tabbedPane = new JTabbedPane();
+        tabbedPane.addTab("Chat", chatPanel);
+        tabbedPane.addTab("Call Graph", callGraphPanel);
     }
 
     @Override
     public JComponent getComponent() {
-        return chatPanel;
+        return tabbedPane;
     }
 
     /**
@@ -57,6 +69,7 @@ public class GhidraAssistProvider extends ComponentProvider {
     public void programOpened(Program program) {
         chatPanel.setCurrentProgram(program);
         chatPanel.addMessage("system","Program opened: " + program.getName());
+        callGraphPanel.updateFunctionList(program);
     }
 
     /**
@@ -65,6 +78,7 @@ public class GhidraAssistProvider extends ComponentProvider {
     public void programClosed(Program program) {
         chatPanel.setCurrentProgram(null);
         chatPanel.addMessage("system","Program closed: " + program.getName());
+        callGraphPanel.clear();
     }
 
     /**
@@ -73,6 +87,7 @@ public class GhidraAssistProvider extends ComponentProvider {
     public void programActivated(Program program) {
         chatPanel.setCurrentProgram(program);
         chatPanel.addMessage("system","Active program: " + program.getName());
+        callGraphPanel.updateFunctionList(program);
     }
 
     /**

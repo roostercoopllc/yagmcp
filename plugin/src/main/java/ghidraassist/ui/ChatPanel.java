@@ -381,6 +381,17 @@ public class ChatPanel extends JPanel {
 
     // ========== Actions ==========
 
+    /**
+     * Send a query from the call graph panel or other components.
+     * Populates the input field and triggers message sending.
+     */
+    public void sendQuery(String query) {
+        SwingUtilities.invokeLater(() -> {
+            inputField.setText(query);
+            sendMessage();
+        });
+    }
+
     private void sendMessage() {
         String text = inputField.getText().trim();
         if (text.isEmpty() || isSending) {
