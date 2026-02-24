@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     """Server configuration loaded from environment variables."""
 
     # Ollama LLM backend
-    ollama_url: str = "http://192.168.0.79:11434"
+    # Override via OLLAMA_URL environment variable or .env file
+    ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5-coder:7b"
 
     # Ghidra repos directory (shared volume with ghidra-server)
