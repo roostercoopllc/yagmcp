@@ -2,6 +2,7 @@ package ghidraassist.ui;
 
 import ghidraassist.GhidraAssistClient;
 import ghidraassist.GhidraAssistSettings;
+import ghidraassist.GhidraAssistSettings.ColorPalette;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -21,6 +22,7 @@ public class SettingsDialog extends JDialog {
     private JComboBox<String> modelComboBox;
     private JButton refreshModelsButton;
     private JCheckBox autoReloadCheckBox;
+    private JComboBox<ColorPalette> colorPaletteCombo;
     private JLabel statusLabel;
     private JButton testButton;
     private JButton saveButton;
@@ -89,8 +91,27 @@ public class SettingsDialog extends JDialog {
         fieldGbc.gridy = 2;
         form.add(autoReloadCheckBox, fieldGbc);
 
-        // Test connection row
+        // Color palette selector
         labelGbc.gridy = 3;
+        form.add(new JLabel("Color Palette:"), labelGbc);
+        colorPaletteCombo = new JComboBox<>(ColorPalette.values());
+        colorPaletteCombo.setSelectedItem(settings.getColorPalette());
+        colorPaletteCombo.setToolTipText("Choose a color theme for the chat window");
+        colorPaletteCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                if (value instanceof ColorPalette) {
+                    value = ((ColorPalette) value).displayName;
+                }
+                return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            }
+        });
+        fieldGbc.gridy = 3;
+        form.add(colorPaletteCombo, fieldGbc);
+
+        // Test connection row
+        labelGbc.gridy = 4;
         form.add(new JLabel(""), labelGbc);
 
         JPanel testPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -99,7 +120,7 @@ public class SettingsDialog extends JDialog {
         statusLabel.setBorder(new EmptyBorder(0, 10, 0, 0));
         testPanel.add(testButton);
         testPanel.add(statusLabel);
-        fieldGbc.gridy = 3;
+        fieldGbc.gridy = 4;
         form.add(testPanel, fieldGbc);
 
         content.add(form, BorderLayout.CENTER);
@@ -227,6 +248,10 @@ public class SettingsDialog extends JDialog {
         settings.setServerUrl(url);
         settings.setModelName(model);
         settings.setAutoReload(autoReloadCheckBox.isSelected());
+        ColorPalette selectedPalette = (ColorPalette) colorPaletteCombo.getSelectedItem();
+        if (selectedPalette != null) {
+            settings.setColorPalette(selectedPalette);
+        }
 
         // Also update the live client
         client.setServerUrl(url);

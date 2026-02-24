@@ -3,12 +3,64 @@ package ghidraassist;
 import ghidra.framework.options.OptionsChangeListener;
 import ghidra.framework.options.ToolOptions;
 import ghidra.framework.plugintool.PluginTool;
+import java.awt.Color;
 
 /**
  * Manages persistent settings for the GhidraAssist plugin.
  * Settings are stored in Ghidra's tool options under the "YAGMCP" category.
  */
 public class GhidraAssistSettings implements OptionsChangeListener {
+
+    /**
+     * Predefined color palettes for the chat window UI.
+     */
+    public enum ColorPalette {
+        DARK("Dark (Default)",
+             new Color(30, 30, 30),      // Panel BG
+             new Color(45, 45, 45),      // Input BG
+             new Color(220, 220, 220),   // Input FG
+             new Color(38, 38, 38)),     // Bar BG
+
+        LIGHT("Light",
+              new Color(245, 245, 245),  // Panel BG
+              new Color(255, 255, 255),  // Input BG
+              new Color(30, 30, 30),     // Input FG
+              new Color(235, 235, 235)), // Bar BG
+
+        MONOKAI("Monokai",
+                new Color(39, 40, 34),   // Panel BG (darker)
+                new Color(49, 50, 44),   // Input BG
+                new Color(248, 248, 242), // Input FG
+                new Color(59, 60, 54)),  // Bar BG
+
+        NORD("Nord",
+             new Color(46, 52, 64),      // Panel BG
+             new Color(59, 66, 82),      // Input BG
+             new Color(236, 239, 244),   // Input FG
+             new Color(46, 52, 64));     // Bar BG
+
+        public final String displayName;
+        public final Color panelBg;
+        public final Color inputBg;
+        public final Color inputFg;
+        public final Color barBg;
+
+        ColorPalette(String displayName, Color panelBg, Color inputBg, Color inputFg, Color barBg) {
+            this.displayName = displayName;
+            this.panelBg = panelBg;
+            this.inputBg = inputBg;
+            this.inputFg = inputFg;
+            this.barBg = barBg;
+        }
+
+        public static ColorPalette fromName(String name) {
+            try {
+                return ColorPalette.valueOf(name);
+            } catch (IllegalArgumentException e) {
+                return DARK;  // Default fallback
+            }
+        }
+    }
 
     public static final String OPTIONS_CATEGORY = "YAGMCP";
 
@@ -18,6 +70,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String OPT_CONTEXT_MODE = "Context Mode";
     private static final String OPT_MAX_HISTORY = "Max History";
     private static final String OPT_AUTO_RELOAD = "Auto-Reload on Changes";
+    private static final String OPT_COLOR_PALETTE = "Color Palette";
 
     private static final String DEFAULT_SERVER_URL = "http://192.168.0.167:8889";
     private static final String DEFAULT_MODEL_NAME = "qwen2.5-coder:7b";
@@ -25,6 +78,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String DEFAULT_CONTEXT_MODE = "function";
     private static final int DEFAULT_MAX_HISTORY = 50;
     private static final boolean DEFAULT_AUTO_RELOAD = true;
+    private static final String DEFAULT_COLOR_PALETTE = "DARK";
 
     private String serverUrl;
     private String modelName;
@@ -32,6 +86,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private String contextMode;
     private int maxHistory;
     private boolean autoReload;
+    private ColorPalette colorPalette;
 
     private final ToolOptions options;
     private SettingsChangeCallback changeCallback;
@@ -64,6 +119,8 @@ public class GhidraAssistSettings implements OptionsChangeListener {
                 "Maximum number of messages to keep in conversation history");
         options.registerOption(OPT_AUTO_RELOAD, DEFAULT_AUTO_RELOAD, null,
                 "Automatically reload program when MCP tools make changes (hot-reload)");
+        options.registerOption(OPT_COLOR_PALETTE, DEFAULT_COLOR_PALETTE, null,
+                "Chat window color palette: DARK, LIGHT, MONOKAI, or NORD");
     }
 
     private void loadAll() {
@@ -73,6 +130,8 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         contextMode = options.getString(OPT_CONTEXT_MODE, DEFAULT_CONTEXT_MODE);
         maxHistory = options.getInt(OPT_MAX_HISTORY, DEFAULT_MAX_HISTORY);
         autoReload = options.getBoolean(OPT_AUTO_RELOAD, DEFAULT_AUTO_RELOAD);
+        String paletteName = options.getString(OPT_COLOR_PALETTE, DEFAULT_COLOR_PALETTE);
+        colorPalette = ColorPalette.fromName(paletteName);
     }
 
     @Override
@@ -110,6 +169,10 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         return autoReload;
     }
 
+    public ColorPalette getColorPalette() {
+        return colorPalette;
+    }
+
     // --- Mutators (also persist to tool options) ---
 
     public void setServerUrl(String url) {
@@ -140,6 +203,11 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     public void setAutoReload(boolean autoReload) {
         this.autoReload = autoReload;
         options.setBoolean(OPT_AUTO_RELOAD, autoReload);
+    }
+
+    public void setColorPalette(ColorPalette palette) {
+        this.colorPalette = palette;
+        options.setString(OPT_COLOR_PALETTE, palette.name());
     }
 
     public void setChangeCallback(SettingsChangeCallback callback) {

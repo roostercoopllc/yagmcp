@@ -4,6 +4,7 @@ import ghidraassist.GhidraAssistClient;
 import ghidraassist.GhidraAssistClient.ChatResponse;
 import ghidraassist.GhidraAssistContextTracker;
 import ghidraassist.GhidraAssistSettings;
+import ghidraassist.GhidraAssistSettings.ColorPalette;
 import ghidraassist.ChangeTracker;
 
 import javax.swing.*;
@@ -42,10 +43,7 @@ import ghidra.framework.plugintool.PluginTool;
  */
 public class ChatPanel extends JPanel {
 
-    private static final Color PANEL_BG = new Color(30, 30, 30);
-    private static final Color INPUT_BG = new Color(45, 45, 45);
-    private static final Color INPUT_FG = new Color(220, 220, 220);
-    private static final Color BAR_BG = new Color(38, 38, 38);
+    // Status colors (constant across all palettes)
     private static final Color STATUS_CONNECTED = new Color(0, 200, 0);
     private static final Color STATUS_DISCONNECTED = new Color(200, 0, 0);
     private static final Color STATUS_CHECKING = new Color(200, 200, 0);
@@ -56,6 +54,12 @@ public class ChatPanel extends JPanel {
     private final ChangeTracker changeTracker = new ChangeTracker();
     private final PluginTool tool;
     private Program currentProgram;
+
+    // Colors from current palette (initialized in constructor)
+    private Color PANEL_BG;
+    private Color INPUT_BG;
+    private Color INPUT_FG;
+    private Color BAR_BG;
 
     // Top bar
     private JPanel changeNotificationPanel;
@@ -86,6 +90,9 @@ public class ChatPanel extends JPanel {
         this.contextTracker = contextTracker;
         this.tool = tool;
         this.currentProgram = tool.getCurrentProgram();
+
+        // Initialize colors from the selected palette
+        applyColorPalette(settings.getColorPalette());
 
         setLayout(new BorderLayout());
         setBackground(PANEL_BG);
@@ -281,6 +288,27 @@ public class ChatPanel extends JPanel {
      */
     public void setCurrentProgram(Program program) {
         this.currentProgram = program;
+    }
+
+    /**
+     * Apply a color palette to the chat panel UI.
+     */
+    public void applyColorPalette(ColorPalette palette) {
+        this.PANEL_BG = palette.panelBg;
+        this.INPUT_BG = palette.inputBg;
+        this.INPUT_FG = palette.inputFg;
+        this.BAR_BG = palette.barBg;
+
+        // Update existing components if they exist
+        setBackground(PANEL_BG);
+        if (messagesPanel != null) {
+            messagesPanel.setBackground(PANEL_BG);
+        }
+        if (inputField != null) {
+            inputField.setBackground(INPUT_BG);
+            inputField.setForeground(INPUT_FG);
+        }
+        repaint();
     }
 
     private void buildMessageArea() {
