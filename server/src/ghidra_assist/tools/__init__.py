@@ -36,6 +36,8 @@ _TOOL_MODULES = [
     "ghidra_assist.tools.yara_gen",
     "ghidra_assist.tools.string_tracker",
     "ghidra_assist.tools.pattern_detector",
+    "ghidra_assist.tools.type_inference",
+    "ghidra_assist.tools.binary_compare",
     "ghidra_assist.tools.chat",
 ]
 

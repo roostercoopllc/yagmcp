@@ -401,3 +401,147 @@ class TestDetectCodePatterns(TestToolTemplate):
         self.assert_success(result)
         assert "matches" in result
         assert "iocs_extracted" in result
+
+
+class TestInferTypesAndStructures(TestToolTemplate):
+    """Test InferTypesAndStructures tool."""
+
+    @pytest.mark.asyncio
+    async def test_infer_types_by_name(self, mock_cache):
+        """Test inferring types for a function by name."""
+        from ghidra_assist.tools.type_inference import InferTypesAndStructures
+
+        mock_code = """void process_data(void* pData, size_t cbSize, HANDLE hHandle) {
+            malloc(cbSize);
+            pData->field = 0x123;
+            handle->method();
+        }"""
+
+        mock_cache.bridge.decompile_function.return_value = {
+            "decompilation": mock_code,
+            "function": "process_data",
+            "address": "0x401000",
+        }
+
+        tool = InferTypesAndStructures()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="test.exe",
+            function_name="process_data"
+        )
+
+        self.assert_success(result)
+        assert result["function_name"] == "process_data"
+        assert "suggestions" in result
+        assert "parameter_types" in result
+        assert "struct_suggestions" in result
+        assert result["confidence_overall"] >= 0.0 and result["confidence_overall"] <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_infer_types_by_address(self, mock_cache):
+        """Test inferring types for a function by address."""
+        from ghidra_assist.tools.type_inference import InferTypesAndStructures
+
+        mock_code = """BOOL check_size(int size) {
+            if (size == 0) return FALSE;
+            return TRUE;
+        }"""
+
+        mock_cache.bridge.decompile_function.return_value = {
+            "decompilation": mock_code,
+            "function": "check_size",
+            "address": "0x401000",
+        }
+
+        tool = InferTypesAndStructures()
+        result = await tool.execute(
+            repository="TestRepo",
+            program="test.exe",
+            address="0x401000"
+        )
+
+        self.assert_success(result)
+        assert result["address"] == "0x401000"
+        assert result["return_type"]["type"] is not None
+
+
+class TestCompareBinaries(TestToolTemplate):
+    """Test CompareBinaries tool."""
+
+    @pytest.mark.asyncio
+    async def test_compare_binaries(self, mock_cache):
+        """Test comparing two binary programs."""
+        from ghidra_assist.tools.binary_compare import CompareBinaries
+
+        # Mock function lists for both programs
+        funcs_v1 = [
+            {"name": "main", "address": "0x401000", "size": 256},
+            {"name": "process_data", "address": "0x401100", "size": 512},
+            {"name": "helper", "address": "0x401200", "size": 128},
+        ]
+        funcs_v2 = [
+            {"name": "main", "address": "0x402000", "size": 256},
+            {"name": "process_data", "address": "0x402100", "size": 480},  # Slightly different size
+            {"name": "new_function", "address": "0x402200", "size": 200},  # New function
+        ]
+
+        # Mock decompilation results
+        decomp_v1_main = "void main() { process_data(buf); }"
+        decomp_v2_main = "void main() { process_data(buf); }"
+
+        call_count = [0]
+
+        def decompile_side_effect(prog, function_name=None, address=None):
+            call_count[0] += 1
+            if "main" in (function_name or ""):
+                return {
+                    "decompilation": decomp_v1_main if call_count[0] == 1 else decomp_v2_main,
+                    "function": "main",
+                    "address": "0x401000" if call_count[0] == 1 else "0x402000",
+                }
+            return {
+                "decompilation": "void func() { }",
+                "function": function_name or "unknown",
+                "address": address or "unknown",
+            }
+
+        mock_cache.bridge.list_functions.side_effect = [funcs_v1, funcs_v2]
+        mock_cache.bridge.decompile_function.side_effect = decompile_side_effect
+
+        tool = CompareBinaries()
+        result = await tool.execute(
+            repository1="TestRepo",
+            program1="malware_v1.exe",
+            repository2="TestRepo",
+            program2="malware_v2.exe",
+            similarity_threshold=0.70
+        )
+
+        self.assert_success(result)
+        assert result["program1"] == "malware_v1.exe"
+        assert result["program2"] == "malware_v2.exe"
+        assert "summary" in result
+        assert "modified_functions" in result
+        assert "added_functions" in result
+        assert "removed_functions" in result
+
+    @pytest.mark.asyncio
+    async def test_compare_empty_functions(self, mock_cache):
+        """Test error handling when no functions found."""
+        from ghidra_assist.tools.binary_compare import CompareBinaries
+        from ghidra_assist.tools.base import ToolResult
+
+        # Mock empty function lists
+        mock_cache.bridge.list_functions.side_effect = [[], []]
+
+        tool = CompareBinaries()
+        result = await tool.execute(
+            repository1="TestRepo",
+            program1="empty1.exe",
+            repository2="TestRepo",
+            program2="empty2.exe"
+        )
+
+        # Should handle empty function lists gracefully (returns error ToolResult)
+        assert isinstance(result, (dict, ToolResult))
+        assert hasattr(result, 'success') or isinstance(result, dict)

@@ -138,6 +138,17 @@ def mock_cache(mock_program):
         "indicators_used": {},
         "confidence": "low",
     }
+    bridge.decompile_function.return_value = {
+        "decompilation": "void test_func() { int x = 0; }",
+        "function": "test_func",
+        "address": "0x401000",
+    }
+    bridge.get_xrefs_to.return_value = []
+    bridge.get_xrefs_from.return_value = []
+    bridge.list_functions.return_value = [
+        {"name": "main", "address": "0x401000", "size": 256},
+        {"name": "helper", "address": "0x401100", "size": 128},
+    ]
 
     cache.bridge = bridge
     return cache
@@ -159,6 +170,8 @@ def mock_get_cache(mock_cache, monkeypatch):
     import ghidra_assist.tools.yara_gen
     import ghidra_assist.tools.string_tracker
     import ghidra_assist.tools.pattern_detector
+    import ghidra_assist.tools.type_inference
+    import ghidra_assist.tools.binary_compare
 
     for module in [
         ghidra_assist.tools.programs,
@@ -174,6 +187,8 @@ def mock_get_cache(mock_cache, monkeypatch):
         ghidra_assist.tools.yara_gen,
         ghidra_assist.tools.string_tracker,
         ghidra_assist.tools.pattern_detector,
+        ghidra_assist.tools.type_inference,
+        ghidra_assist.tools.binary_compare,
     ]:
         monkeypatch.setattr(module, "_get_cache", lambda: mock_cache)
 
