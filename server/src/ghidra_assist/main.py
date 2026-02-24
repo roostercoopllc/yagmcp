@@ -175,8 +175,7 @@ def create_app() -> FastMCP:
     try:
         from .prompts import get_all_prompts  # type: ignore[import-untyped]
 
-        for prompt_cls in get_all_prompts():
-            prompt = prompt_cls()
+        for prompt in get_all_prompts():
 
             async def _prompt_renderer(_p=prompt, **kwargs):
                 result = await _p.render(**kwargs)
