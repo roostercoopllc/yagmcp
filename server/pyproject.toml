@@ -2,6 +2,11 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.uv]
+# Configuration for uv package manager
+# Use locked dependencies from uv.lock for reproducible builds
+managed = true
+
 [project]
 name = "ghidra-assist"
 version = "0.1.0"

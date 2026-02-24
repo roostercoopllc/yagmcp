@@ -16,11 +16,43 @@ def mock_program():
     """Mock Ghidra Program object for testing."""
     program = MagicMock()
     program.getName.return_value = "test_binary"
-    program.getLanguage.return_value.getProcessor.return_value.getName.return_value = "x86"
+
+    # Mock language chain: getLanguage() -> getLanguageDescription() -> getProcessor() -> toString()
+    language_desc = MagicMock()
+    processor = MagicMock()
+    processor.toString.return_value = "x86_64"
+    processor.getName.return_value = "x86"
+    language_desc.getProcessor.return_value = processor
+    language_desc.getSize.return_value = 64
+    language = MagicMock()
+    language.getLanguageDescription.return_value = language_desc
+    program.getLanguage.return_value = language
+
+    # Mock compiler spec chain
+    compiler_spec_desc = MagicMock()
+    compiler_spec_desc.getCompilerSpecName.return_value = "Visual Studio"
+    compiler_spec = MagicMock()
+    compiler_spec.getCompilerSpecDescription.return_value = compiler_spec_desc
+    program.getCompilerSpec.return_value = compiler_spec
+
+    # Mock other required methods
+    program.getExecutableFormat.return_value = "PE"
+    image_base = MagicMock()
+    image_base.toString.return_value = "0x400000"
+    program.getImageBase.return_value = image_base
+
+    # Mock function manager
+    func_manager = MagicMock()
+    func_manager.getFunctionCount.return_value = 100
+    program.getFunctionManager.return_value = func_manager
+
+    # Mock symbol table
+    sym_table = MagicMock()
+    sym_table.getNumSymbols.return_value = 50
+    program.getSymbolTable.return_value = sym_table
+
     program.getMemory.return_value = MagicMock()
     program.getListing.return_value = MagicMock()
-    program.getSymbolTable.return_value = MagicMock()
-    program.getFunctionManager.return_value = MagicMock()
     program.startTransaction.return_value = 1
     program.endTransaction.return_value = None
     program.save.return_value = None
@@ -54,7 +86,60 @@ def mock_cache(mock_program):
 
     cache = MagicMock()
     cache.get_program.return_value = mock_program
-    cache.bridge = MagicMock()
+
+    # Mock bridge methods for malware analysis tools
+    bridge = MagicMock()
+
+    # Default bridge method returns
+    bridge.get_section_entropy.return_value = [
+        {"name": ".text", "entropy": 5.2, "size": 4096, "initialized": True},
+        {"name": ".data", "entropy": 2.1, "size": 2048, "initialized": True},
+    ]
+    bridge.list_imports.return_value = [
+        {"name": "kernel32.dll", "address": "0x400000"},
+        {"name": "ntdll.dll", "address": "0x400010"},
+    ]
+    bridge.list_strings.return_value = [
+        {"value": "cmd.exe", "address": "0x405000"},
+        {"value": "powershell", "address": "0x405010"},
+    ]
+    bridge.get_entry_point_bytes.return_value = {
+        "address": "0x401000",
+        "hex": "55 48 89 E5",
+    }
+    bridge.triage_binary.return_value = {
+        "architecture": "x86_64",
+        "compiler": "Visual Studio",
+        "executable_format": "PE",
+        "entry_point": "0x401000",
+        "packing": {"likely_packed": False},
+        "sections": [],
+        "suspicious_imports": [],
+        "suspicious_strings": [],
+        "function_count": 100,
+        "string_count": 500,
+    }
+    bridge.extract_iocs.return_value = {
+        "iocs": {
+            "ipv4": [],
+            "urls": [],
+            "domains": [],
+            "registry_keys": [],
+            "file_paths": [],
+        },
+        "total_count": 0,
+    }
+    bridge.detect_anti_analysis.return_value = {
+        "techniques": [],
+        "summary": {},
+    }
+    bridge.generate_yara.return_value = {
+        "rule": "rule test { strings: $s1 = \"test\" condition: $s1 }",
+        "indicators_used": {},
+        "confidence": "low",
+    }
+
+    cache.bridge = bridge
     return cache
 
 
@@ -68,6 +153,10 @@ def mock_get_cache(mock_cache, monkeypatch):
     import ghidra_assist.tools.data_types
     import ghidra_assist.tools.modifications
     import ghidra_assist.tools.comments
+    import ghidra_assist.tools.triage
+    import ghidra_assist.tools.ioc_extract
+    import ghidra_assist.tools.anti_analysis
+    import ghidra_assist.tools.yara_gen
 
     for module in [
         ghidra_assist.tools.programs,
@@ -77,6 +166,10 @@ def mock_get_cache(mock_cache, monkeypatch):
         ghidra_assist.tools.data_types,
         ghidra_assist.tools.modifications,
         ghidra_assist.tools.comments,
+        ghidra_assist.tools.triage,
+        ghidra_assist.tools.ioc_extract,
+        ghidra_assist.tools.anti_analysis,
+        ghidra_assist.tools.yara_gen,
     ]:
         monkeypatch.setattr(module, "_get_cache", lambda: mock_cache)
 
@@ -98,3 +191,6 @@ class TestToolTemplate:
         if error_substring and "error" in result:
             assert error_substring.lower() in result["error"].lower(), \
                 f"Expected error to contain '{error_substring}', got: {result['error']}"
+
+
+__all__ = ["TestToolTemplate", "mock_program", "mock_function", "mock_address", "mock_cache"]

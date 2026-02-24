@@ -114,19 +114,30 @@ if [[ ! -d "${VENV_DIR}" ]]; then
     "${PYTHON_CMD}" -m venv "${VENV_DIR}"
 fi
 
-# Activate the virtualenv
+# ---------------------------------------------------------------------------
+# Check for uv package manager
+# ---------------------------------------------------------------------------
+if ! command -v uv &>/dev/null; then
+    echo "ERROR: uv package manager not found in PATH."
+    echo "Install uv: https://github.com/astral-sh/uv#getting-started"
+    exit 1
+fi
+echo "uv:     $(uv --version)"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Install / update dependencies using uv
+# ---------------------------------------------------------------------------
+echo "Installing dependencies with uv..."
+cd "${SERVER_DIR}"
+uv sync --all-groups
+echo "Dependencies installed."
+echo ""
+
+# Activate the virtualenv created by uv
 # shellcheck disable=SC1091
 source "${VENV_DIR}/bin/activate"
 echo "Virtualenv: ${VENV_DIR}"
-
-# ---------------------------------------------------------------------------
-# Install / update dependencies
-# ---------------------------------------------------------------------------
-echo "Installing dependencies..."
-pip install --quiet --upgrade pip
-pip install --quiet -e "${SERVER_DIR}[dev]"
-echo "Dependencies installed."
-echo ""
 
 # ---------------------------------------------------------------------------
 # Launch with uvicorn auto-reload

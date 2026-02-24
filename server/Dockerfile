@@ -41,14 +41,18 @@ RUN wget -q -O /tmp/ghidra.zip \
     && mv /opt/ghidra_${GHIDRA_VERSION}_PUBLIC ${GHIDRA_INSTALL_DIR} \
     && rm /tmp/ghidra.zip
 
-# Copy application source and install Python dependencies
+# Install uv for faster, more reliable dependency management
+RUN pip install --no-cache-dir uv
+
+# Copy application source and install Python dependencies using uv
 WORKDIR /build
 COPY pyproject.toml .
+COPY uv.lock .
 COPY src/ src/
 
-# IMPORTANT: Use `pip install .` NOT `-e .`
-# IMPORTANT: Do NOT use `--user` flag
-RUN pip install --no-cache-dir .
+# Install dependencies using uv (faster, deterministic, uses locked versions from uv.lock)
+# --compile-bytecode speeds up runtime startup
+RUN uv pip install --no-cache-dir --compile-bytecode .
 
 # ============================= RUNTIME STAGE ================================
 FROM python:${PYTHON_VERSION}-slim AS runtime
