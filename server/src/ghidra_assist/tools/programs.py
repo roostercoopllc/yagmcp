@@ -8,7 +8,7 @@ Tools:
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Any, Dict
 
 from ghidra_assist.project_cache import ProjectCache
 from ghidra_assist.tools import register_tool
