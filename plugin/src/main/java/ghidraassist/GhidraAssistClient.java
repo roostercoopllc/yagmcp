@@ -9,9 +9,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 
 /**
  * HTTP client for the YAGMCP server REST API.
@@ -90,6 +94,47 @@ public class GhidraAssistClient {
         return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                 .thenApply(response -> response.statusCode() >= 200 && response.statusCode() < 300)
                 .exceptionally(e -> false);
+    }
+
+    /**
+     * Fetches available models from Ollama server.
+     *
+     * @return CompletableFuture resolving to a list of available model names
+     */
+    public CompletableFuture<List<String>> fetchAvailableModels() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                // Try to fetch from Ollama on localhost:11434
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create("http://localhost:11434/api/tags"))
+                        .header("Accept", "application/json")
+                        .timeout(Duration.ofSeconds(5))
+                        .GET()
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+                if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                    List<String> models = new ArrayList<>();
+
+                    if (json.has("models")) {
+                        JsonArray modelsArray = json.getAsJsonArray("models");
+                        for (JsonElement element : modelsArray) {
+                            JsonObject modelObj = element.getAsJsonObject();
+                            if (modelObj.has("name")) {
+                                models.add(modelObj.get("name").getAsString());
+                            }
+                        }
+                    }
+
+                    return models;
+                }
+            } catch (Exception e) {
+                // Silently fail and return empty list
+            }
+            return new ArrayList<>();
+        });
     }
 
     /**

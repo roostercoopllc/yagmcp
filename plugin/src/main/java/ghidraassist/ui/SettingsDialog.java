@@ -6,6 +6,7 @@ import ghidraassist.GhidraAssistSettings;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.List;
 
 /**
  * Quick-settings dialog accessible from the chat panel's gear icon.
@@ -17,7 +18,8 @@ public class SettingsDialog extends JDialog {
     private final GhidraAssistClient client;
 
     private JTextField serverUrlField;
-    private JTextField modelField;
+    private JComboBox<String> modelComboBox;
+    private JButton refreshModelsButton;
     private JLabel statusLabel;
     private JButton testButton;
     private JButton saveButton;
@@ -62,9 +64,20 @@ public class SettingsDialog extends JDialog {
         // Model
         labelGbc.gridy = 1;
         form.add(new JLabel("Model:"), labelGbc);
-        modelField = new JTextField(settings.getModelName(), 30);
+
+        JPanel modelPanel = new JPanel(new BorderLayout(5, 0));
+        modelComboBox = new JComboBox<>();
+        modelComboBox.setEditable(true);
+        modelComboBox.addItem(settings.getModelName());
+        modelComboBox.setSelectedItem(settings.getModelName());
+        modelPanel.add(modelComboBox, BorderLayout.CENTER);
+
+        refreshModelsButton = new JButton("Refresh");
+        refreshModelsButton.setPreferredSize(new java.awt.Dimension(80, 25));
+        modelPanel.add(refreshModelsButton, BorderLayout.EAST);
+
         fieldGbc.gridy = 1;
-        form.add(modelField, fieldGbc);
+        form.add(modelPanel, fieldGbc);
 
         // Test connection row
         labelGbc.gridy = 2;
@@ -96,6 +109,7 @@ public class SettingsDialog extends JDialog {
         testButton.addActionListener(e -> testConnection());
         saveButton.addActionListener(e -> save());
         cancelButton.addActionListener(e -> dispose());
+        refreshModelsButton.addActionListener(e -> loadModels());
 
         getRootPane().setDefaultButton(saveButton);
 
@@ -103,6 +117,55 @@ public class SettingsDialog extends JDialog {
         getRootPane().registerKeyboardAction(e -> dispose(),
                 KeyStroke.getKeyStroke("ESCAPE"),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        // Load models on dialog open
+        loadModels();
+    }
+
+    private void loadModels() {
+        refreshModelsButton.setEnabled(false);
+        refreshModelsButton.setText("Loading...");
+        statusLabel.setText("Fetching models...");
+        statusLabel.setForeground(Color.GRAY);
+
+        client.fetchAvailableModels().thenAccept(models -> {
+            SwingUtilities.invokeLater(() -> {
+                String currentSelection = (String) modelComboBox.getSelectedItem();
+                modelComboBox.removeAllItems();
+
+                if (models.isEmpty()) {
+                    statusLabel.setText("No models found");
+                    statusLabel.setForeground(Color.ORANGE);
+                    if (currentSelection != null) {
+                        modelComboBox.addItem(currentSelection);
+                        modelComboBox.setSelectedItem(currentSelection);
+                    }
+                } else {
+                    // Add all discovered models
+                    for (String model : models) {
+                        modelComboBox.addItem(model);
+                    }
+                    // Restore previous selection if it exists
+                    if (currentSelection != null && models.contains(currentSelection)) {
+                        modelComboBox.setSelectedItem(currentSelection);
+                    } else if (!models.isEmpty()) {
+                        modelComboBox.setSelectedIndex(0);
+                    }
+                    statusLabel.setText(" ");
+                }
+
+                refreshModelsButton.setEnabled(true);
+                refreshModelsButton.setText("Refresh");
+            });
+        }).exceptionally(e -> {
+            SwingUtilities.invokeLater(() -> {
+                statusLabel.setText("Failed to load models");
+                statusLabel.setForeground(Color.RED);
+                refreshModelsButton.setEnabled(true);
+                refreshModelsButton.setText("Refresh");
+            });
+            return null;
+        });
     }
 
     private void testConnection() {
@@ -118,7 +181,9 @@ public class SettingsDialog extends JDialog {
         statusLabel.setForeground(Color.YELLOW);
 
         // Create a temporary client with the entered URL to test
-        GhidraAssistClient testClient = new GhidraAssistClient(url, modelField.getText().trim());
+        Object selectedModel = modelComboBox.getSelectedItem();
+        String model = selectedModel != null ? selectedModel.toString().trim() : "qwen2.5-coder:7b";
+        GhidraAssistClient testClient = new GhidraAssistClient(url, model);
         testClient.testConnection().thenAccept(success -> {
             SwingUtilities.invokeLater(() -> {
                 testButton.setEnabled(true);
@@ -135,7 +200,8 @@ public class SettingsDialog extends JDialog {
 
     private void save() {
         String url = serverUrlField.getText().trim();
-        String model = modelField.getText().trim();
+        Object selectedModel = modelComboBox.getSelectedItem();
+        String model = selectedModel != null ? selectedModel.toString().trim() : "";
 
         if (url.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Server URL cannot be empty.",
