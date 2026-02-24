@@ -544,6 +544,7 @@ class GhidraBridge:
         try:
             func.setName(new_name, SourceType.USER_DEFINED)
             program.endTransaction(txid, True)
+            program.save("Rename function", None)  # Persist changes to disk
             return {
                 "success": True,
                 "old_name": old_name,
@@ -592,6 +593,7 @@ class GhidraBridge:
                 try:
                     param.setName(new_var_name, SourceType.USER_DEFINED)
                     program.endTransaction(txid, True)
+                    program.save("Rename parameter", None)  # Persist changes to disk
                     return {
                         "success": True,
                         "old_name": old_var_name,
@@ -634,6 +636,7 @@ class GhidraBridge:
                     target_sym, new_var_name, None, SourceType.USER_DEFINED
                 )
                 program.endTransaction(txid, True)
+                program.save("Rename variable", None)  # Persist changes to disk
                 return {
                     "success": True,
                     "old_name": old_var_name,
@@ -693,6 +696,7 @@ class GhidraBridge:
         try:
             cu.setComment(ct, comment_text)
             program.endTransaction(txid, True)
+            program.save("Set comment", None)  # Persist changes to disk
             return {
                 "success": True,
                 "address": address,
@@ -749,6 +753,7 @@ class GhidraBridge:
         try:
             memory.setBytes(addr, new_bytes)
             program.endTransaction(txid, True)
+            program.save("Patch bytes", None)  # Persist changes to disk
             return {
                 "success": True,
                 "address": address,
@@ -789,6 +794,7 @@ class GhidraBridge:
             else:
                 sym_table.createLabel(addr, new_name, SourceType.USER_DEFINED)
             program.endTransaction(txid, True)
+            program.save("Rename label", None)  # Persist changes to disk
             return {
                 "success": True,
                 "address": address,
