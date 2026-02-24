@@ -210,7 +210,20 @@ public class GhidraAssistClient {
                 responseModel = json.get("model").getAsString();
             }
 
-            return new ChatResponse(reply, responseModel, false, null);
+            // Extract tools_called list
+            List<String> toolsCalled = new ArrayList<>();
+            if (json.has("tools_called") && json.get("tools_called").isJsonArray()) {
+                for (var element : json.getAsJsonArray("tools_called")) {
+                    if (element.isJsonPrimitive()) {
+                        toolsCalled.add(element.getAsString());
+                    }
+                }
+            }
+
+            // Store raw response for change tracking
+            Map<String, Object> rawResponse = gson.fromJson(json, Map.class);
+
+            return new ChatResponse(reply, responseModel, false, null, toolsCalled, rawResponse);
         } catch (Exception e) {
             return ChatResponse.error("Failed to parse server response: " + e.getMessage());
         }
@@ -245,12 +258,21 @@ public class GhidraAssistClient {
         private final String model;
         private final boolean error;
         private final String errorMessage;
+        private final List<String> toolsCalled;
+        private final Map<String, Object> rawResponse;
 
         public ChatResponse(String content, String model, boolean error, String errorMessage) {
+            this(content, model, error, errorMessage, new ArrayList<>(), new HashMap<>());
+        }
+
+        public ChatResponse(String content, String model, boolean error, String errorMessage,
+                List<String> toolsCalled, Map<String, Object> rawResponse) {
             this.content = content;
             this.model = model;
             this.error = error;
             this.errorMessage = errorMessage;
+            this.toolsCalled = toolsCalled != null ? toolsCalled : new ArrayList<>();
+            this.rawResponse = rawResponse != null ? rawResponse : new HashMap<>();
         }
 
         public static ChatResponse error(String message) {
@@ -271,6 +293,14 @@ public class GhidraAssistClient {
 
         public String getErrorMessage() {
             return errorMessage;
+        }
+
+        public List<String> getToolsCalled() {
+            return new ArrayList<>(toolsCalled);
+        }
+
+        public Map<String, Object> getRawResponse() {
+            return new HashMap<>(rawResponse);
         }
 
         /**

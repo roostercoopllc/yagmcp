@@ -4,6 +4,7 @@ import ghidraassist.GhidraAssistClient;
 import ghidraassist.GhidraAssistClient.ChatResponse;
 import ghidraassist.GhidraAssistContextTracker;
 import ghidraassist.GhidraAssistSettings;
+import ghidraassist.ChangeTracker;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -15,6 +16,7 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import javax.swing.border.LineBorder;
 
 /**
  * The main chat panel embedded in Ghidra's dockable window.
@@ -45,8 +47,12 @@ public class ChatPanel extends JPanel {
     private final GhidraAssistSettings settings;
     private final GhidraAssistClient client;
     private final GhidraAssistContextTracker contextTracker;
+    private final ChangeTracker changeTracker = new ChangeTracker();
 
     // Top bar
+    private JPanel changeNotificationPanel;
+    private JLabel changeCountLabel;
+    private JButton reloadButton;
     private JComboBox<String> modelSelector;
     private JLabel statusDot;
     private JLabel statusText;
@@ -74,6 +80,7 @@ public class ChatPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(PANEL_BG);
 
+        buildChangeNotificationPanel();
         buildTopBar();
         buildMessageArea();
         buildBottomBar();
@@ -145,7 +152,64 @@ public class ChatPanel extends JPanel {
 
         topBar.add(settingsButton, BorderLayout.EAST);
 
-        add(topBar, BorderLayout.NORTH);
+        // Create a wrapper panel for change notification + top bar
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(BAR_BG);
+        headerPanel.add(changeNotificationPanel, BorderLayout.NORTH);
+        headerPanel.add(topBar, BorderLayout.CENTER);
+
+        add(headerPanel, BorderLayout.NORTH);
+    }
+
+    private void buildChangeNotificationPanel() {
+        changeNotificationPanel = new JPanel(new BorderLayout(10, 0));
+        changeNotificationPanel.setBackground(new Color(80, 60, 0));  // Dark orange/gold
+        changeNotificationPanel.setBorder(new EmptyBorder(6, 10, 6, 10));
+        changeNotificationPanel.setVisible(false);
+
+        JLabel warningIcon = new JLabel("⚠");
+        warningIcon.setFont(warningIcon.getFont().deriveFont(14f));
+        warningIcon.setForeground(new Color(255, 200, 0));
+        changeNotificationPanel.add(warningIcon, BorderLayout.WEST);
+
+        JPanel centerPanel = new JPanel(new BorderLayout(10, 0));
+        centerPanel.setOpaque(false);
+
+        changeCountLabel = new JLabel();
+        changeCountLabel.setForeground(new Color(255, 255, 200));
+        changeCountLabel.setFont(changeCountLabel.getFont().deriveFont(Font.BOLD));
+        centerPanel.add(changeCountLabel, BorderLayout.CENTER);
+
+        reloadButton = new JButton("Reload Program");
+        reloadButton.setBackground(new Color(60, 120, 60));
+        reloadButton.setForeground(Color.WHITE);
+        reloadButton.setFocusPainted(false);
+        reloadButton.setBorder(new LineBorder(new Color(100, 200, 100), 1));
+        reloadButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        reloadButton.addActionListener(e -> reloadProgram());
+        reloadButton.setToolTipText("Reload the program from disk to see changes");
+        centerPanel.add(reloadButton, BorderLayout.EAST);
+
+        changeNotificationPanel.add(centerPanel, BorderLayout.CENTER);
+    }
+
+    private void reloadProgram() {
+        addMessage("system", "Program reload requested. Changes will be visible when you reload in Ghidra.\n\n" +
+                "To reload: File > Reopen File or press F5 in the Listing window.");
+        changeTracker.clearChanges();
+        updateChangeNotification();
+    }
+
+    private void updateChangeNotification() {
+        if (changeTracker.hasChanges()) {
+            List<ChangeTracker.Change> changes = changeTracker.getChanges();
+            changeCountLabel.setText(changes.size() + " modification(s) detected. Program modified.");
+            changeNotificationPanel.setVisible(true);
+        } else {
+            changeNotificationPanel.setVisible(false);
+        }
+        changeNotificationPanel.revalidate();
+        changeNotificationPanel.repaint();
     }
 
     private void buildMessageArea() {
@@ -269,6 +333,20 @@ public class ChatPanel extends JPanel {
                     addMessage("system", "Error: " + response.getErrorMessage());
                 } else {
                     addMessage("assistant", response.getContent());
+
+                    // Track tools that were called (modification tools)
+                    for (String toolName : response.getToolsCalled()) {
+                        if (isModificationTool(toolName)) {
+                            // Try to extract change details from raw response
+                            Map<String, Object> rawResponse = response.getRawResponse();
+                            changeTracker.trackToolResponse(toolName, rawResponse);
+                        }
+                    }
+
+                    // Update change notification if any modifications were made
+                    if (!response.getToolsCalled().isEmpty()) {
+                        updateChangeNotification();
+                    }
                 }
             });
         }).exceptionally(ex -> {
@@ -279,6 +357,11 @@ public class ChatPanel extends JPanel {
             });
             return null;
         });
+    }
+
+    private boolean isModificationTool(String toolName) {
+        return toolName.contains("rename") || toolName.contains("patch") ||
+               toolName.contains("comment") || toolName.contains("label");
     }
 
     private void openSettings() {
