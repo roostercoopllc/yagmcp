@@ -1,0 +1,135 @@
+# =============================================================================
+# YAGMCP — Standalone Docker Compose (Ollama + Server + Open WebUI)
+#
+# A complete, self-contained reverse-engineering analysis stack.
+#
+# Usage (CPU):
+#   cp .env.standalone.template .env.standalone
+#   docker compose -f docker-compose.standalone.yml up -d
+#
+# Usage (GPU with NVIDIA):
+#   cp .env.standalone.template .env.standalone
+#   docker compose -f docker-compose.standalone.yml --profile gpu up -d
+#
+# Then load a model (first run only):
+#   docker compose -f docker-compose.standalone.yml run --rm ollama ollama pull qwen2.5-coder:7b
+#
+# Browser access:
+#   Open WebUI:  http://localhost:3000
+#   YAGMCP:      http://localhost:8889
+#   Ollama:      http://localhost:11434 (API only)
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Ollama — Local LLM backend
+  # ---------------------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    container_name: yagmcp-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_MODELS=${OLLAMA_MODELS:-/root/.ollama/models}
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # GPU profile: uncomment below for NVIDIA GPU support
+    # profiles:
+    #   - gpu
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # YAGMCP Server — MCP analysis server
+  # ---------------------------------------------------------------------------
+  yagmcp-server:
+    # Pull from GitHub Container Registry (preferred)
+    image: ghcr.io/roostercoopllc/yagmcp-server:latest
+    container_name: yagmcp-server
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    # Fallback: build locally if GHCR image is unavailable
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    environment:
+      # Override .env to use local Ollama service
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:7b}
+      REPOS_DIR: ${REPOS_DIR:-/repos}
+      MAX_CACHED_PROGRAMS: ${MAX_CACHED_PROGRAMS:-5}
+      GHIDRA_ASSIST_PORT: ${GHIDRA_ASSIST_PORT:-8889}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8889:8889"
+    volumes:
+      # Read-only access to Ghidra repositories
+      - ./repos:/repos:ro
+      # Persistent cache/data directory
+      - yagmcp_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8889/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - yagmcp_net
+
+  # ---------------------------------------------------------------------------
+  # Open WebUI — Browser-based chat frontend
+  # ---------------------------------------------------------------------------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: yagmcp-webui
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      # Connect to local Ollama instance
+      OLLAMA_BASE_URL: http://ollama:11434
+      # Optional: Allow insecure HTTP (needed for localhost development)
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-change-me-in-production}
+    ports:
+      - "3000:8080"
+    volumes:
+      # Persistent data directory for WebUI
+      - webui_data:/app/backend/data
+    networks:
+      - yagmcp_net
+
+# ---------------------------------------------------------------------------
+# Named volumes (persistent data)
+# ---------------------------------------------------------------------------
+volumes:
+  ollama_data:
+    driver: local
+  yagmcp_data:
+    driver: local
+  webui_data:
+    driver: local
+
+# ---------------------------------------------------------------------------
+# Docker network (all services communicate here)
+# ---------------------------------------------------------------------------
+networks:
+  yagmcp_net:
+    driver: bridge

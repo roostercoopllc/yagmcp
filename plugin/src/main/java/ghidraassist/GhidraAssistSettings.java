@@ -72,7 +72,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String OPT_AUTO_RELOAD = "Auto-Reload on Changes";
     private static final String OPT_COLOR_PALETTE = "Color Palette";
 
-    private static final String DEFAULT_SERVER_URL = "http://192.168.0.167:8889";
+    private static final String DEFAULT_SERVER_URL = "http://localhost:8889";
     private static final String DEFAULT_MODEL_NAME = "qwen2.5-coder:7b";
     private static final boolean DEFAULT_AUTO_CONTEXT = true;
     private static final String DEFAULT_CONTEXT_MODE = "function";

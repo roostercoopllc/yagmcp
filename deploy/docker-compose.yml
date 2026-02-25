@@ -9,7 +9,7 @@
 services:
   yagmcp-server:
     build:
-      context: ../../yagmcp/server
+      context: ../server
       dockerfile: Dockerfile
     image: yagmcp-server:latest
     container_name: yagmcp-server

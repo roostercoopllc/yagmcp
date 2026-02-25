@@ -89,7 +89,7 @@ GET  /mcp | POST /mcp           # MCP Streamable HTTP (Claude Desktop)
 ### Server (.env)
 
 ```bash
-OLLAMA_URL=http://192.168.0.79:11434
+OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder:7b
 REPOS_DIR=/repos
 MAX_CACHED_PROGRAMS=5
@@ -98,7 +98,7 @@ GHIDRA_ASSIST_PORT=8889
 
 ### Plugin (Edit > Tool Options > YAGMCP)
 
-- Server URL: `http://192.168.0.167:8889`
+- Server URL: `http://localhost:8889`
 - Model: `qwen2.5-coder:7b`
 - Context mode: function / selection / both / none
 - Auto-include context: on/off

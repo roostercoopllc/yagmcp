@@ -21,7 +21,7 @@ After creating the tool, configure the **Valves** (settings):
 
 | Valve | Default | Description |
 |---|---|---|
-| `yagmcp_url` | `http://192.168.0.167:8889` | Base URL of your YAGMCP server |
+| `yagmcp_url` | `http://localhost:8889` | Base URL of your YAGMCP server |
 | `request_timeout` | `120` | HTTP timeout in seconds (increase for large binaries) |
 
 Update `yagmcp_url` to match your server's address. If running Open WebUI and YAGMCP on the same Docker network, use the container name (e.g., `http://yagmcp-server:8889`).
@@ -30,11 +30,23 @@ Update `yagmcp_url` to match your server's address. If running Open WebUI and YA
 
 | Tool | Description |
 |---|---|
+| **Program Management** | |
+| `list_repositories` | List all Ghidra repositories on the server |
+| `list_programs` | List all programs in a repository |
+| **Function Analysis** | |
 | `decompile_function` | Decompile a function and return pseudo-C source |
 | `list_functions` | List functions in a program (with optional name filter) |
 | `analyze_function` | Decompile + LLM analysis with a custom prompt |
-| `list_repositories` | List all Ghidra repositories on the server |
-| `list_programs` | List all programs in a repository |
+| `get_disassembly` | Get assembly/disassembly at a given address |
+| **Cross-Reference Analysis** | |
+| `get_xrefs_to` | Get all cross-references pointing to an address |
+| `get_xrefs_from` | Get all cross-references originating from an address |
+| `get_call_graph` | Get the call graph (callers/callees) of a function |
+| **Malware Analysis** | |
+| `triage_binary` | Perform automated binary triage with key findings |
+| `extract_iocs` | Extract IOCs (IPs, domains, hashes, etc.) from a binary |
+| `detect_anti_analysis` | Detect anti-debug, anti-VM, packers, and other anti-analysis techniques |
+| `generate_yara` | Generate YARA rules for a function's signature |
 
 ## Usage
 

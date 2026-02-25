@@ -28,6 +28,8 @@ plugin/lib/
 *.class
 hs_err_pid*
 replay_pid*
+# BUT: Keep Gradle wrapper JAR (must be committed for CI/CD)
+!plugin/gradle/wrapper/gradle-wrapper.jar
 
 # Docker
 docker/ghidra-assist/data/
