@@ -28,3 +28,9 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.25.0",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25.0",
+]
