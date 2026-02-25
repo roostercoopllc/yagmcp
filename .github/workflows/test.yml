@@ -20,7 +20,7 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: cd server && uv sync --all-groups && uv pip install pytest
+        run: cd server && uv sync --all-groups && uv pip install pytest pytest-asyncio
 
       - name: Run tests
         run: cd server && .venv/bin/python -m pytest --tb=short -v
