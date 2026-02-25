@@ -54,6 +54,13 @@ public class GhidraAssistContextTracker {
         void onContextChanged(Map<String, String> newContext);
     }
 
+    /**
+     * Set the callback to be fired when context changes.
+     */
+    public void setContextChangeCallback(ContextChangeCallback callback) {
+        this.changeCallback = callback;
+    }
+
     public GhidraAssistContextTracker() {
         // default constructor
     }
@@ -155,6 +162,28 @@ public class GhidraAssistContextTracker {
      */
     public Map<String, String> getContext() {
         return getContext("function");
+    }
+
+    /**
+     * Calculate the total size in bytes of all context fields.
+     * Used to show context size indicators in the UI.
+     */
+    public long getTotalContextSize(String mode) {
+        Map<String, String> context = getContext(mode);
+        long total = 0;
+        for (String value : context.values()) {
+            if (value != null) {
+                total += value.getBytes().length;
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Convenience overload using default mode "function".
+     */
+    public long getTotalContextSize() {
+        return getTotalContextSize("function");
     }
 
     // --- Decompilation ---

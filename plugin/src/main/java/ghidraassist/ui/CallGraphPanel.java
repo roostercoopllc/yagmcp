@@ -3,6 +3,8 @@ package ghidraassist.ui;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.*;
 import java.util.List;
 import ghidra.program.model.listing.Program;
@@ -23,11 +25,13 @@ public class CallGraphPanel extends JPanel {
     private GraphVisualizationPanel graphPanel;
     private ChatPanel chatPanel;
     private Program currentProgram;
+    private List<String> allFunctionNames = new ArrayList<>();  // Full list of functions for filtering
 
     public CallGraphPanel(ChatPanel chatPanel) {
         this.chatPanel = chatPanel;
         this.currentProgram = null;
         initComponents();
+        setupKeyboardShortcuts();
     }
 
     private void initComponents() {
@@ -67,16 +71,58 @@ public class CallGraphPanel extends JPanel {
         add(splitPane, BorderLayout.CENTER);
     }
 
+    /**
+     * Set up keyboard shortcuts for Call Graph Panel.
+     * Ctrl+L: Refresh function list
+     * Ctrl+E: Export as JSON
+     */
+    private void setupKeyboardShortcuts() {
+        addKeyListener(new KeyListener() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // Ctrl+L: Refresh function list
+                if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_L) {
+                    if (currentProgram != null) {
+                        updateFunctionList(currentProgram);
+                    }
+                    e.consume();
+                }
+                // Ctrl+E: Export graph as JSON
+                else if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_E) {
+                    exportGraph();
+                    e.consume();
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {}
+
+            @Override
+            public void keyTyped(KeyEvent e) {}
+        });
+        setFocusable(true);
+    }
+
     private JPanel createControlPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
         panel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
 
-        // Function selector
+        // Function selector with filtering
         panel.add(new JLabel("Root Function:"));
         functionSelector = new JComboBox<>();
-        functionSelector.setPreferredSize(new Dimension(200, 25));
+        functionSelector.setPreferredSize(new Dimension(250, 25));
+        functionSelector.setEditable(true);
         functionSelector.addActionListener(e -> updateDepthSpinner());
+
+        // Add filtering on text input
+        JTextField editor = (JTextField) functionSelector.getEditor().getEditorComponent();
+        editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateFunctionFilter(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateFunctionFilter(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateFunctionFilter(); }
+        });
+
         panel.add(functionSelector);
 
         // Depth spinner
@@ -259,6 +305,7 @@ public class CallGraphPanel extends JPanel {
 
     public void updateFunctionList(Program program) {
         this.currentProgram = program;
+        allFunctionNames.clear();
         functionSelector.removeAllItems();
 
         if (program == null) {
@@ -268,6 +315,7 @@ public class CallGraphPanel extends JPanel {
         try {
             FunctionManager functionManager = program.getFunctionManager();
             for (Function func : functionManager.getFunctions(true)) {
+                allFunctionNames.add(func.getName());
                 functionSelector.addItem(func.getName());
             }
             if (functionSelector.getItemCount() > 0) {
@@ -280,10 +328,57 @@ public class CallGraphPanel extends JPanel {
 
     public void clear() {
         this.currentProgram = null;
+        allFunctionNames.clear();
         functionSelector.removeAllItems();
         resultsArea.setText("");
         graphPanel.clear();
         exportButton.setEnabled(false);
+    }
+
+    /**
+     * Filter function list based on search text (fuzzy matching).
+     * Called when user types in the function selector.
+     */
+    private void updateFunctionFilter() {
+        JTextField editor = (JTextField) functionSelector.getEditor().getEditorComponent();
+        String searchText = editor.getText().toLowerCase();
+
+        functionSelector.removeAllItems();
+
+        if (searchText.isEmpty()) {
+            // Show all functions
+            for (String func : allFunctionNames) {
+                functionSelector.addItem(func);
+            }
+        } else {
+            // Filter by fuzzy match: functions containing all search terms
+            String[] searchTerms = searchText.split("\\s+");
+            int matchCount = 0;
+            for (String func : allFunctionNames) {
+                String funcLower = func.toLowerCase();
+                boolean matches = true;
+                for (String term : searchTerms) {
+                    if (!funcLower.contains(term)) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) {
+                    functionSelector.addItem(func);
+                    matchCount++;
+                }
+            }
+
+            // Show match count in editor if no text box available
+            if (matchCount == 0) {
+                // Keep editor text even if no matches
+            }
+        }
+
+        // Keep showing the dropdown
+        if (functionSelector.getItemCount() > 0) {
+            functionSelector.showPopup();
+        }
     }
 
     private String escapeString(String str) {

@@ -78,6 +78,7 @@ public class ChatPanel extends JPanel {
     private JComboBox<String> contextModeSelector;
     private JTextField inputField;
     private JButton sendButton;
+    private JLabel contextSizeLabel;
 
     // State
     private final List<MessageEntry> messageHistory = new ArrayList<>();
@@ -101,6 +102,20 @@ public class ChatPanel extends JPanel {
         buildTopBar();
         buildMessageArea();
         buildBottomBar();
+
+        // Wire context tracker callback to update context size display
+        contextTracker.setContextChangeCallback(ctx -> {
+            String currentMode = (String) contextModeSelector.getSelectedItem();
+            if (currentMode != null) {
+                updateContextSizeDisplay(currentMode);
+            }
+        });
+
+        // Initial context size display
+        String initialMode = (String) contextModeSelector.getSelectedItem();
+        if (initialMode != null) {
+            updateContextSizeDisplay(initialMode);
+        }
 
         // Initial connection check
         checkConnection();
@@ -316,7 +331,10 @@ public class ChatPanel extends JPanel {
         bottomBar.setBackground(BAR_BG);
         bottomBar.setBorder(new EmptyBorder(6, 10, 6, 10));
 
-        // Left: context mode selector
+        // Left: context mode selector + context size indicator
+        JPanel leftPanel = new JPanel(new BorderLayout(4, 0));
+        leftPanel.setBackground(BAR_BG);
+
         contextModeSelector = new JComboBox<>(new String[]{"function", "selection", "both", "none"});
         contextModeSelector.setSelectedItem(settings.getContextMode());
         contextModeSelector.setPreferredSize(new Dimension(100, 26));
@@ -325,9 +343,19 @@ public class ChatPanel extends JPanel {
             String mode = (String) contextModeSelector.getSelectedItem();
             if (mode != null) {
                 settings.setContextMode(mode);
+                updateContextSizeDisplay(mode);
             }
         });
-        bottomBar.add(contextModeSelector, BorderLayout.WEST);
+        leftPanel.add(contextModeSelector, BorderLayout.WEST);
+
+        // Context size indicator
+        contextSizeLabel = new JLabel("Context: 0B");
+        contextSizeLabel.setForeground(INPUT_FG);
+        contextSizeLabel.setFont(contextSizeLabel.getFont().deriveFont(11f));
+        contextSizeLabel.setToolTipText("Total size of context being sent to server");
+        leftPanel.add(contextSizeLabel, BorderLayout.CENTER);
+
+        bottomBar.add(leftPanel, BorderLayout.WEST);
 
         // Center: text input
         inputField = new JTextField();
@@ -341,6 +369,7 @@ public class ChatPanel extends JPanel {
 
         // Enter key sends message
         inputField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "send");
+        inputField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.CTRL_DOWN_MASK), "send");
         inputField.getActionMap().put("send", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -580,6 +609,37 @@ public class ChatPanel extends JPanel {
             sendButton.setText("\u23F3");  // hourglass
         } else {
             sendButton.setText("\u25B6");  // play triangle
+        }
+    }
+
+    /**
+     * Update context size display based on current context mode and data.
+     */
+    private void updateContextSizeDisplay(String contextMode) {
+        long sizeBytes = contextTracker.getTotalContextSize(contextMode);
+        String sizeText;
+        Color sizeColor = INPUT_FG;
+
+        if (sizeBytes < 1024) {
+            sizeText = "Context: " + sizeBytes + "B";
+        } else if (sizeBytes < 1024 * 1024) {
+            sizeText = String.format("Context: %.1fKB", sizeBytes / 1024.0);
+        } else {
+            sizeText = String.format("Context: %.1fMB", sizeBytes / (1024.0 * 1024));
+        }
+
+        // Color indicator: green (<100KB), yellow (100-500KB), red (>500KB)
+        if (sizeBytes < 100 * 1024) {
+            sizeColor = new Color(100, 200, 100);  // Green
+        } else if (sizeBytes < 500 * 1024) {
+            sizeColor = new Color(200, 200, 100);  // Yellow
+        } else {
+            sizeColor = new Color(200, 100, 100);  // Red
+        }
+
+        if (contextSizeLabel != null) {
+            contextSizeLabel.setText(sizeText);
+            contextSizeLabel.setForeground(sizeColor);
         }
     }
 

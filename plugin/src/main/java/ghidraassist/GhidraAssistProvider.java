@@ -9,6 +9,9 @@ package ghidraassist;
 
 import javax.swing.JComponent;
 import javax.swing.JTabbedPane;
+import javax.swing.KeyStroke;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 
 import docking.ComponentProvider;
 import ghidra.program.model.listing.Program;
@@ -56,6 +59,42 @@ public class GhidraAssistProvider extends ComponentProvider {
         tabbedPane = new JTabbedPane();
         tabbedPane.addTab("Chat", chatPanel);
         tabbedPane.addTab("Call Graph", callGraphPanel);
+
+        // Set up keyboard shortcuts
+        setupKeyboardShortcuts();
+    }
+
+    /**
+     * Set up keyboard shortcuts for common actions.
+     */
+    private void setupKeyboardShortcuts() {
+        tabbedPane.addKeyListener(new KeyListener() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                // Ctrl+Tab: Next tab
+                if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_TAB && !e.isShiftDown()) {
+                    int current = tabbedPane.getSelectedIndex();
+                    int next = (current + 1) % tabbedPane.getTabCount();
+                    tabbedPane.setSelectedIndex(next);
+                    e.consume();
+                }
+                // Ctrl+Shift+Tab: Previous tab
+                else if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_TAB && e.isShiftDown()) {
+                    int current = tabbedPane.getSelectedIndex();
+                    int prev = (current - 1 + tabbedPane.getTabCount()) % tabbedPane.getTabCount();
+                    tabbedPane.setSelectedIndex(prev);
+                    e.consume();
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {}
+
+            @Override
+            public void keyTyped(KeyEvent e) {}
+        });
+
+        tabbedPane.setFocusable(true);
     }
 
     @Override
