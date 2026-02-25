@@ -23,7 +23,7 @@ jobs:
         run: cd server && uv sync --all-groups
 
       - name: Run tests
-        run: cd server && uv run pytest --tb=short -v
+        run: cd server && .venv/bin/python -m pytest --tb=short -v
 
   plugin-compile:
     runs-on: ubuntu-latest
@@ -39,13 +39,13 @@ jobs:
         uses: actions/cache@v4
         id: ghidra-cache
         with:
-          path: ~/ghidra
+          path: ${{ runner.home }}/ghidra
           key: ghidra-12.0.3-${{ runner.os }}
 
       - name: Download Ghidra (if not cached)
         if: steps.ghidra-cache.outputs.cache-hit != 'true'
         run: |
-          cd ~
+          cd ${{ runner.home }}
           wget -q https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.0.3_build/ghidra_12.0.3_PUBLIC_20260210.zip
           unzip -q ghidra_12.0.3_PUBLIC_20260210.zip
           mv ghidra_12.0.3_PUBLIC ghidra
@@ -53,11 +53,11 @@ jobs:
 
       - name: Patch Ghidra buildExtension.gradle for Groovy compatibility
         run: |
-          sed -i 's/results\.findAll(File::exists)/results.findAll { it.exists() }/' ~/ghidra/support/buildExtension.gradle
-          sed -i 's/classpath\.findAll(file -> hasJarHelp(file))/classpath.findAll { file -> hasJarHelp(file) }/' ~/ghidra/support/buildExtension.gradle
+          sed -i 's/results\.findAll(File::exists)/results.findAll { it.exists() }/' ${{ runner.home }}/ghidra/support/buildExtension.gradle
+          sed -i 's/classpath\.findAll(file -> hasJarHelp(file))/classpath.findAll { file -> hasJarHelp(file) }/' ${{ runner.home }}/ghidra/support/buildExtension.gradle
 
       - name: Make gradlew executable
         run: chmod +x plugin/gradlew
 
       - name: Compile plugin
-        run: cd plugin && ./gradlew -PGHIDRA_INSTALL_DIR=~/ghidra compileJava
+        run: cd plugin && ./gradlew -PGHIDRA_INSTALL_DIR=${{ runner.home }}/ghidra compileJava
