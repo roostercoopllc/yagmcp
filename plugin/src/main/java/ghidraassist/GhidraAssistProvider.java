@@ -46,7 +46,7 @@ public class GhidraAssistProvider extends ComponentProvider {
 
         // Build the chat panel (pass plugin tool for auto-reload capability)
         GhidraAssistSettings settings = new GhidraAssistSettings(plugin.getTool());
-        GhidraAssistClient client = new GhidraAssistClient(settings.getServerUrl(), settings.getModelName());
+        GhidraAssistClient client = new GhidraAssistClient(settings.getServerUrl(), settings.getModelName(), settings.getRequestTimeout());
         chatPanel = new ChatPanel(settings, client, contextTracker, plugin.getTool());
 
         // Show initial system message

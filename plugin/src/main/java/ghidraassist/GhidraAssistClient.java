@@ -25,22 +25,25 @@ import com.google.gson.JsonElement;
 public class GhidraAssistClient {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
-    // Multi-turn agentic loops can run for several minutes (decompile + N renames,
-    // each backed by a slow local LLM).  5 minutes gives enough headroom.
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(300);
 
     private final HttpClient httpClient;
     private final Gson gson;
+    private final Duration requestTimeout;
 
     private String serverUrl;
     private String model;
     private String conversationId;
 
     public GhidraAssistClient(String serverUrl, String model) {
+        this(serverUrl, model, 300);
+    }
+
+    public GhidraAssistClient(String serverUrl, String model, int timeoutSeconds) {
         this.serverUrl = normalizeUrl(serverUrl);
         this.model = model;
         this.conversationId = UUID.randomUUID().toString();
         this.gson = new Gson();
+        this.requestTimeout = Duration.ofSeconds(Math.max(30, timeoutSeconds));
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(CONNECT_TIMEOUT)
                 .build();
@@ -62,7 +65,7 @@ public class GhidraAssistClient {
                 .uri(URI.create(serverUrl + "/api/chat"))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .timeout(REQUEST_TIMEOUT)
+                .timeout(requestTimeout)
                 .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
                 .build();
 

@@ -124,7 +124,23 @@ IMPORTANT — Using context automatically:
 - Execute tools immediately and report results directly. Do not show
   raw JSON or ask for confirmation before running a tool.
 - If the context contains decompiled code, use it directly rather than
-  calling decompile_function again for the same function.
+  calling decompile again for the same function.
+
+IMPORTANT — Renaming variables:
+- Before calling rename_variable, you MUST know the exact current
+  variable names. Read them from the decompiled code in "Current context"
+  if provided. If not provided, call decompile first to get them.
+- NEVER use placeholder names like <old_name>, <variable>, param_1 as
+  a guess — only use names that actually appear in the decompiled code.
+- Call rename_variable once per variable with the real name from the
+  decompiled output.
+
+IMPORTANT — Tool call JSON format:
+- When calling tools, emit one JSON object per tool call with this exact
+  structure (all keys and string values must be properly double-quoted):
+  {"name": "tool_name", "arguments": {"param": "value"}}
+- Never use placeholder angle-bracket values like <address> or <old_name>.
+  If you do not know a value, call a read tool first to obtain it.
 
 Keep responses focused and actionable. Prefer precision over verbosity.\
 """

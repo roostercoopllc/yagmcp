@@ -71,6 +71,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String OPT_MAX_HISTORY = "Max History";
     private static final String OPT_AUTO_RELOAD = "Auto-Reload on Changes";
     private static final String OPT_COLOR_PALETTE = "Color Palette";
+    private static final String OPT_REQUEST_TIMEOUT = "Request Timeout (seconds)";
 
     private static final String DEFAULT_SERVER_URL = "http://localhost:8889";
     private static final String DEFAULT_MODEL_NAME = "qwen2.5-coder:7b";
@@ -79,6 +80,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final int DEFAULT_MAX_HISTORY = 50;
     private static final boolean DEFAULT_AUTO_RELOAD = true;
     private static final String DEFAULT_COLOR_PALETTE = "DARK";
+    private static final int DEFAULT_REQUEST_TIMEOUT = 300;
 
     private String serverUrl;
     private String modelName;
@@ -87,6 +89,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private int maxHistory;
     private boolean autoReload;
     private ColorPalette colorPalette;
+    private int requestTimeout;
 
     private final ToolOptions options;
     private SettingsChangeCallback changeCallback;
@@ -121,6 +124,8 @@ public class GhidraAssistSettings implements OptionsChangeListener {
                 "Automatically reload program when MCP tools make changes (hot-reload)");
         options.registerOption(OPT_COLOR_PALETTE, DEFAULT_COLOR_PALETTE, null,
                 "Chat window color palette: DARK, LIGHT, MONOKAI, or NORD");
+        options.registerOption(OPT_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT, null,
+                "HTTP request timeout in seconds for chat requests (increase for slow LLMs)");
     }
 
     private void loadAll() {
@@ -132,6 +137,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         autoReload = options.getBoolean(OPT_AUTO_RELOAD, DEFAULT_AUTO_RELOAD);
         String paletteName = options.getString(OPT_COLOR_PALETTE, DEFAULT_COLOR_PALETTE);
         colorPalette = ColorPalette.fromName(paletteName);
+        requestTimeout = options.getInt(OPT_REQUEST_TIMEOUT, DEFAULT_REQUEST_TIMEOUT);
     }
 
     @Override
@@ -173,6 +179,10 @@ public class GhidraAssistSettings implements OptionsChangeListener {
         return colorPalette;
     }
 
+    public int getRequestTimeout() {
+        return requestTimeout;
+    }
+
     // --- Mutators (also persist to tool options) ---
 
     public void setServerUrl(String url) {
@@ -208,6 +218,11 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     public void setColorPalette(ColorPalette palette) {
         this.colorPalette = palette;
         options.setString(OPT_COLOR_PALETTE, palette.name());
+    }
+
+    public void setRequestTimeout(int seconds) {
+        this.requestTimeout = seconds;
+        options.setInt(OPT_REQUEST_TIMEOUT, seconds);
     }
 
     public void setChangeCallback(SettingsChangeCallback callback) {
