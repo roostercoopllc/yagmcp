@@ -630,6 +630,16 @@ async def chat(
                 if tool_name.startswith("functions."):
                     tool_name = tool_name[len("functions."):]
 
+                # Some models (gpt-oss) double-nest the tool call: the outer
+                # "arguments" dict contains {"name": "...", "arguments": {actual args}}.
+                # Unwrap to get the real arguments.
+                if (
+                    isinstance(arguments, dict)
+                    and "arguments" in arguments
+                    and isinstance(arguments["arguments"], dict)
+                ):
+                    arguments = arguments["arguments"]
+
                 logger.info(
                     "Agent calling tool: %s(%s)",
                     tool_name,
