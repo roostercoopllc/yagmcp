@@ -148,6 +148,18 @@ Keep responses focused and actionable. Prefer precision over verbosity.\
 # Tools excluded from the chat agent to prevent recursion
 _EXCLUDED_TOOLS = {"chat_with_ollama"}
 
+# When decompilation is already in context the model only needs to apply edits,
+# not query the binary.  Sending all 34 tool schemas adds ~5 000 tokens of
+# overhead per Ollama call — a 7-8× slowdown on CPU-bound large models (20B+).
+# This reduced set keeps the tool schema under ~700 tokens.
+_MODIFICATION_TOOLS = {
+    "rename_function",
+    "rename_variable",
+    "set_comment",
+    "patch_bytes",
+    "rename_label",
+}
+
 
 # ---------------------------------------------------------------------------
 # Text-based tool call parser (fallback for models without native tool_calls)
@@ -373,8 +385,23 @@ async def chat(
         user_content = message
     messages.append({"role": "user", "content": user_content})
 
-    # Build Ollama tool descriptors
-    ollama_tools = _build_ollama_tools()
+    # Build Ollama tool descriptors.
+    # When decompilation is already in context we only need modification tools
+    # (~700 tokens vs ~5 000 tokens for all 34 tools).  Fewer tokens = much
+    # faster first-token latency on CPU-bound large models.
+    all_tools = _build_ollama_tools()
+    if decompilation:
+        ollama_tools = [
+            t for t in all_tools
+            if t["function"]["name"] in _MODIFICATION_TOOLS
+        ]
+        logger.debug(
+            "Decompilation context present: using %d modification tools (was %d)",
+            len(ollama_tools),
+            len(all_tools),
+        )
+    else:
+        ollama_tools = all_tools
 
     tools_called: list[str] = []
     turns_used = 0
