@@ -131,15 +131,16 @@ public class GhidraAssistContextTracker {
         Map<String, String> ctx = new LinkedHashMap<>();
 
         if (currentProgram != null) {
-            ctx.put("program_name", currentProgram.getName());
-            String domainPath = currentProgram.getDomainFile().getPathname();
-            ctx.put("repository_path", domainPath);
+            ctx.put("program", currentProgram.getName());
+            // Use project/repository name so tools can resolve the Ghidra Server repo
+            String repoName = currentProgram.getDomainFile().getProjectLocator().getName();
+            ctx.put("repo", repoName);
         }
 
         if (currentLocation != null) {
             Address addr = currentLocation.getAddress();
             if (addr != null) {
-                ctx.put("current_address", addr.toString());
+                ctx.put("address", addr.toString());
             }
         }
 
@@ -240,14 +241,14 @@ public class GhidraAssistContextTracker {
             return;
         }
 
-        ctx.put("function_name", func.getName());
+        ctx.put("function", func.getName());
         ctx.put("function_address", func.getEntryPoint().toString());
         ctx.put("function_signature", func.getPrototypeString(true, false));
 
         // Include decompiled source if cached
         String decompiled = decompileCache.get(func.getEntryPoint());
         if (decompiled != null) {
-            ctx.put("decompiled_code", decompiled);
+            ctx.put("decompilation", decompiled);
         }
     }
 

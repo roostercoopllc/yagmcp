@@ -111,8 +111,18 @@ When answering questions:
 - Show relevant decompiled C code, addresses, and cross-references.
 - Explain findings in clear, technical language appropriate for a
   reverse engineer.
-- If context specifies a repo and program, use those for tool calls.
 - When you cannot determine something from the tools, say so explicitly.
+
+IMPORTANT — Using context automatically:
+- When "Current context" is provided (Repository, Program, Function,
+  Address, Decompiled code), use those values as default arguments for
+  ALL tool calls without asking the user to supply them.
+- Never ask the user "what is the repository?" or "what is the program?"
+  if the context already contains that information.
+- Execute tools immediately and report results directly. Do not show
+  raw JSON or ask for confirmation before running a tool.
+- If the context contains decompiled code, use it directly rather than
+  calling decompile_function again for the same function.
 
 Keep responses focused and actionable. Prefer precision over verbosity.\
 """
@@ -262,15 +272,22 @@ async def chat(
             ctx_parts.append(f"Current function: {context['function']}")
         if context.get("address"):
             ctx_parts.append(f"Current address: {context['address']}")
+        if context.get("decompilation"):
+            ctx_parts.append(
+                f"Decompiled code of current function:\n```c\n{context['decompilation']}\n```"
+            )
         if ctx_parts:
             system_content += "\n\nCurrent context:\n" + "\n".join(ctx_parts)
 
     # Retrieve or create conversation history
     messages = _get_conversation(conversation_id)
 
-    # Inject system prompt at the start if this is a new conversation
+    # Inject (or refresh) the system prompt — refresh on every turn so the
+    # LLM always sees the latest Ghidra context (user may navigate between messages)
     if not messages:
         messages.append({"role": "system", "content": system_content})
+    elif messages[0]["role"] == "system":
+        messages[0]["content"] = system_content
 
     # Append the user message
     messages.append({"role": "user", "content": message})
