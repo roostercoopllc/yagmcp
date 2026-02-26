@@ -227,6 +227,57 @@ def _parse_text_tool_calls(content: str) -> list[dict]:
     return calls
 
 
+def _parse_rename_table(content: str) -> list[tuple[str, str]]:
+    """Extract (old_name, new_name) pairs from a Markdown rename suggestion table.
+
+    Models like gpt-oss accept the tool schema but respond with a Markdown
+    table of rename suggestions instead of calling rename_variable.  This
+    parser detects those tables so the server can auto-execute the renames.
+
+    Handles column headers such as:
+      "Current name", "Old name"  →  "Suggested new name", "New name", "Rename to"
+
+    Returns an empty list if no recognisable rename table is found.
+    """
+    pairs: list[tuple[str, str]] = []
+    old_col = new_col = -1
+    in_table = False
+
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if in_table:
+                break  # end of table block
+            continue
+
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+
+        # Header row: identify which column is old vs new
+        if old_col == -1 and new_col == -1:
+            lower = [c.lower() for c in cells]
+            for i, c in enumerate(lower):
+                if any(kw in c for kw in ("old name", "current name", "original", "variable")):
+                    old_col = i
+                if any(kw in c for kw in ("new name", "suggested", "rename", "clearer", "descriptive")):
+                    new_col = i
+            if old_col != -1 and new_col != -1:
+                in_table = True
+            continue
+
+        # Separator row e.g. |---|---|
+        if all(re.fullmatch(r"[:\-\s]+", c) for c in cells if c):
+            continue
+
+        # Data row
+        if in_table and old_col < len(cells) and new_col < len(cells):
+            old = cells[old_col].strip("`").strip()
+            new = cells[new_col].strip("`").strip()
+            if old and new and old != new and " " not in old:
+                pairs.append((old, new))
+
+    return pairs
+
+
 # ---------------------------------------------------------------------------
 # Ollama tool-schema builder
 # ---------------------------------------------------------------------------
@@ -537,7 +588,44 @@ async def chat(
                             len(tool_calls),
                         )
                     else:
-                        # Genuinely no tool calls -- model gave a final answer
+                        # No JSON tool calls either.  Check if the model described
+                        # renames in a Markdown table without calling tools — common
+                        # with gpt-oss and similar models that accept the tool schema
+                        # but respond with prose instead of structured tool_calls.
+                        if decompilation and context:
+                            rename_pairs = _parse_rename_table(content)
+                            if rename_pairs:
+                                logger.info(
+                                    "Detected %d rename(s) in model table; "
+                                    "auto-executing rename_variable",
+                                    len(rename_pairs),
+                                )
+                                rename_results: list[str] = []
+                                for old_name, new_name in rename_pairs:
+                                    args: dict[str, Any] = {
+                                        "repository": context.get("repo", ""),
+                                        "program": context.get("program", ""),
+                                        "old_name": old_name,
+                                        "new_name": new_name,
+                                    }
+                                    if context.get("function"):
+                                        args["function_name"] = context["function"]
+                                    result = await _execute_tool_call("rename_variable", args)
+                                    tools_called.append("rename_variable")
+                                    status = (
+                                        "ok"
+                                        if "error" not in result
+                                        else f"error: {result.get('error')}"
+                                    )
+                                    rename_results.append(f"{old_name} → {new_name}: {status}")
+                                    logger.info(
+                                        "Auto-rename %s → %s: %s", old_name, new_name, status
+                                    )
+                                # Append a concise summary as the final assistant message
+                                summary = "Applied renames:\n" + "\n".join(
+                                    f"- {r}" for r in rename_results
+                                )
+                                messages.append({"role": "assistant", "content": summary})
                         break
                 else:
                     break
