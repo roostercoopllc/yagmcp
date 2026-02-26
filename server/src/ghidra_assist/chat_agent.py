@@ -143,6 +143,9 @@ IMPORTANT — Renaming variables:
 - Do NOT ask the user for information already present in context
   (repository, program, function name, address, decompiled code).
   Extract it from context and act immediately.
+- NEVER present a table of rename suggestions and tell the user to apply
+  them manually in Ghidra. When asked to rename variables, execute every
+  rename_variable tool call first, then briefly report what was done.
 
 IMPORTANT — Tool call JSON format:
 - When calling tools, emit one JSON object per tool call with this exact
