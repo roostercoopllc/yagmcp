@@ -21,7 +21,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./repos:/repos:ro
+      - ${REPOS_HOST_DIR:-./repos}:/repos
       - ./data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8889/api/health"]
