@@ -18,9 +18,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.swing.border.LineBorder;
+import ghidra.program.model.listing.Function;
+import ghidra.program.model.listing.FunctionManager;
 import ghidra.program.model.listing.Program;
+import ghidra.program.model.pcode.HighFunctionDBUtil;
+import ghidra.program.model.pcode.HighSymbol;
+import ghidra.program.model.symbol.SourceType;
 import ghidra.program.util.ProgramLocation;
 import ghidra.framework.plugintool.PluginTool;
+import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileResults;
+import ghidra.util.task.ConsoleTaskMonitor;
 
 /**
  * The main chat panel embedded in Ghidra's dockable window.
@@ -470,6 +478,13 @@ public class ChatPanel extends JPanel {
                     if (!response.getToolsCalled().isEmpty()) {
                         updateChangeNotification();
                     }
+
+                    // Execute client-side directives (e.g. rename_variable)
+                    Map<String, Object> raw = response.getRawResponse();
+                    Object directivesObj = raw.get("directives");
+                    if (directivesObj instanceof List<?>) {
+                        executeDirectives((List<?>) directivesObj);
+                    }
                 }
             });
         }).exceptionally(ex -> {
@@ -480,6 +495,148 @@ public class ChatPanel extends JPanel {
             });
             return null;
         });
+    }
+
+    /**
+     * Execute client-side directives returned by the server.
+     * Runs rename_variable directly in the Ghidra JVM so changes are
+     * immediately visible in the decompiler without Ghidra-server conflicts.
+     */
+    @SuppressWarnings("unchecked")
+    private void executeDirectives(List<?> directives) {
+        if (currentProgram == null || directives.isEmpty()) {
+            return;
+        }
+
+        // Collect rename directives
+        List<Map<String, String>> renames = new ArrayList<>();
+        for (Object d : directives) {
+            if (d instanceof Map) {
+                Map<String, Object> directive = (Map<String, Object>) d;
+                if ("rename_variable".equals(directive.get("action"))) {
+                    Map<String, String> rename = new java.util.HashMap<>();
+                    rename.put("old_name", String.valueOf(directive.getOrDefault("old_name", "")));
+                    rename.put("new_name", String.valueOf(directive.getOrDefault("new_name", "")));
+                    rename.put("function", String.valueOf(directive.getOrDefault("function", "")));
+                    renames.add(rename);
+                }
+            }
+        }
+
+        if (renames.isEmpty()) {
+            return;
+        }
+
+        // Run on a background thread to avoid blocking the UI during decompilation
+        new Thread(() -> {
+            int applied = 0;
+            int failed = 0;
+
+            // Find the target function
+            String funcName = renames.get(0).get("function");
+            FunctionManager fm = currentProgram.getFunctionManager();
+            Function targetFunc = null;
+            for (Function f : fm.getFunctions(true)) {
+                if (f.getName().equals(funcName)) {
+                    targetFunc = f;
+                    break;
+                }
+            }
+
+            if (targetFunc == null) {
+                final String msg = "Could not find function '" + funcName + "' to apply renames.";
+                SwingUtilities.invokeLater(() -> addMessage("system", msg));
+                return;
+            }
+
+            // Decompile once to get the HighFunction with all variables
+            DecompInterface decomp = new DecompInterface();
+            try {
+                decomp.openProgram(currentProgram);
+                DecompileResults decompResult = decomp.decompileFunction(
+                        targetFunc, 60, new ConsoleTaskMonitor());
+
+                if (decompResult == null || decompResult.getHighFunction() == null) {
+                    SwingUtilities.invokeLater(() ->
+                            addMessage("system", "Decompilation failed; cannot apply renames."));
+                    return;
+                }
+
+                var highFunc = decompResult.getHighFunction();
+                var localMap = highFunc.getLocalSymbolMap();
+
+                // Apply each rename in a single transaction
+                int txid = currentProgram.startTransaction("Rename variables");
+                try {
+                    for (Map<String, String> r : renames) {
+                        String oldName = r.get("old_name");
+                        String newName = r.get("new_name");
+
+                        // Search high-level symbols (local variables + parameters)
+                        HighSymbol target = null;
+                        var symIter = localMap.getSymbols();
+                        while (symIter.hasNext()) {
+                            HighSymbol sym = symIter.next();
+                            if (sym.getName().equals(oldName)) {
+                                target = sym;
+                                break;
+                            }
+                        }
+
+                        // Also check function parameters
+                        if (target == null) {
+                            boolean foundParam = false;
+                            for (var param : targetFunc.getParameters()) {
+                                if (param.getName().equals(oldName)) {
+                                    try {
+                                        param.setName(newName, SourceType.USER_DEFINED);
+                                        applied++;
+                                        foundParam = true;
+                                    } catch (Exception e) {
+                                        failed++;
+                                        foundParam = true; // don't double-count
+                                    }
+                                    break;
+                                }
+                            }
+                            if (!foundParam) {
+                                failed++;
+                            }
+                            continue;
+                        }
+
+                        try {
+                            HighFunctionDBUtil.updateDBVariable(
+                                    target, newName, null, SourceType.USER_DEFINED);
+                            applied++;
+                        } catch (Exception e) {
+                            failed++;
+                        }
+                    }
+
+                    currentProgram.endTransaction(txid, true);
+                } catch (Exception e) {
+                    currentProgram.endTransaction(txid, false);
+                    final String msg = "Transaction failed: " + e.getMessage();
+                    SwingUtilities.invokeLater(() -> addMessage("system", msg));
+                    return;
+                }
+
+                // Flush events so decompiler view refreshes
+                currentProgram.flushEvents();
+
+                final int ok = applied;
+                final int err = failed;
+                SwingUtilities.invokeLater(() -> {
+                    addMessage("system", "Renamed " + ok + " variable(s)"
+                            + (err > 0 ? " (" + err + " failed)" : "") + ".");
+                    updateChangeNotification();
+                });
+
+            } finally {
+                decomp.dispose();
+            }
+        }, "YAGMCP-DirectiveExecutor").start();
     }
 
     private boolean isModificationTool(String toolName) {

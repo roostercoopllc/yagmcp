@@ -470,6 +470,11 @@ async def chat(
         ollama_tools = all_tools
 
     tools_called: list[str] = []
+    # Directives are client-side actions the plugin should execute directly
+    # in the Ghidra JVM (e.g. rename_variable).  This avoids the pyghidra
+    # ↔ Ghidra-server file-locking conflict that makes server-side renames
+    # invisible to the GUI client.
+    directives: list[dict[str, str]] = []
     turns_used = 0
     # Tracks whether this model rejected native tool calling and must run without tools.
     no_tools = False
@@ -592,40 +597,25 @@ async def chat(
                         # renames in a Markdown table without calling tools — common
                         # with gpt-oss and similar models that accept the tool schema
                         # but respond with prose instead of structured tool_calls.
+                        # Instead of executing via pyghidra (which can't write to a
+                        # Ghidra-server repo that the GUI client has open), emit
+                        # directives for the Ghidra plugin to apply client-side.
                         if decompilation and context:
                             rename_pairs = _parse_rename_table(content)
                             if rename_pairs:
                                 logger.info(
                                     "Detected %d rename(s) in model table; "
-                                    "auto-executing rename_variable",
+                                    "emitting client-side directives",
                                     len(rename_pairs),
                                 )
-                                rename_results: list[str] = []
+                                func_name = context.get("function", "")
                                 for old_name, new_name in rename_pairs:
-                                    args: dict[str, Any] = {
-                                        "repository": context.get("repo", ""),
-                                        "program": context.get("program", ""),
+                                    directives.append({
+                                        "action": "rename_variable",
                                         "old_name": old_name,
                                         "new_name": new_name,
-                                    }
-                                    if context.get("function"):
-                                        args["function_name"] = context["function"]
-                                    result = await _execute_tool_call("rename_variable", args)
-                                    tools_called.append("rename_variable")
-                                    status = (
-                                        "ok"
-                                        if "error" not in result
-                                        else f"error: {result.get('error')}"
-                                    )
-                                    rename_results.append(f"{old_name} → {new_name}: {status}")
-                                    logger.info(
-                                        "Auto-rename %s → %s: %s", old_name, new_name, status
-                                    )
-                                # Append a concise summary as the final assistant message
-                                summary = "Applied renames:\n" + "\n".join(
-                                    f"- {r}" for r in rename_results
-                                )
-                                messages.append({"role": "assistant", "content": summary})
+                                        "function": func_name,
+                                    })
                         break
                 else:
                     break
@@ -647,7 +637,25 @@ async def chat(
                 )
                 tools_called.append(tool_name)
 
-                result = await _execute_tool_call(tool_name, arguments)
+                # Modification tools (rename_variable etc.) are emitted as
+                # client-side directives so the Ghidra plugin can apply them
+                # directly in its JVM — avoiding the pyghidra ↔ Ghidra-server
+                # file-locking conflict.
+                if tool_name == "rename_variable":
+                    directives.append({
+                        "action": "rename_variable",
+                        "old_name": arguments.get("old_name", ""),
+                        "new_name": arguments.get("new_name", ""),
+                        "function": arguments.get("function_name", ""),
+                    })
+                    result = {
+                        "success": True,
+                        "old_name": arguments.get("old_name", ""),
+                        "new_name": arguments.get("new_name", ""),
+                        "note": "Directive queued for client-side execution",
+                    }
+                else:
+                    result = await _execute_tool_call(tool_name, arguments)
 
                 # Loop detection: if the same tool+args fail twice in a row,
                 # break the agentic loop so the model can give a text response
@@ -727,10 +735,13 @@ async def chat(
         duration_ms,
     )
 
-    return {
+    result_dict: dict[str, Any] = {
         "response": final_response,
         "tools_called": tools_called,
         "conversation_id": conversation_id,
         "turns_used": turns_used,
         "duration_ms": duration_ms,
     }
+    if directives:
+        result_dict["directives"] = directives
+    return result_dict
