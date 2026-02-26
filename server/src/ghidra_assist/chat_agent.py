@@ -351,7 +351,8 @@ async def chat(
     tools_called: list[str] = []
     turns_used = 0
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    # 90s per Ollama call; up to max_turns calls per request
+    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)) as client:
         for turn in range(max_turns):
             turns_used = turn + 1
             logger.debug("Agent loop turn %d/%d", turns_used, max_turns)

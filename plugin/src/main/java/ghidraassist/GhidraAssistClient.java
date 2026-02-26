@@ -25,7 +25,9 @@ import com.google.gson.JsonElement;
 public class GhidraAssistClient {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(120);
+    // Multi-turn agentic loops can run for several minutes (decompile + N renames,
+    // each backed by a slow local LLM).  5 minutes gives enough headroom.
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(300);
 
     private final HttpClient httpClient;
     private final Gson gson;
