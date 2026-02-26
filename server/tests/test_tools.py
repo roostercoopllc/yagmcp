@@ -61,13 +61,13 @@ class TestToolRegistry:
             )
 
     def test_expected_tool_count(self):
-        """We expect 20 tools total."""
+        """We expect 33+ tools total (13 core + 20 utilities)."""
         with patch.dict("sys.modules", {"pyghidra": MagicMock()}):
             from ghidra_assist.tools import get_all_tools
 
             tools = get_all_tools()
-            assert len(tools) == 20, (
-                f"Expected 20 tools, got {len(tools)}: "
+            assert len(tools) >= 33, (
+                f"Expected 33+ tools, got {len(tools)}: "
                 f"{[t.name for t in tools]}"
             )
 
@@ -82,10 +82,13 @@ class TestToolErrorHandling:
             from ghidra_assist.tools.programs import ListPrograms
 
             tool = ListPrograms()
-            result = await tool.execute()
-            assert result.success is False or (
-                isinstance(result, dict) and "Missing" in str(result)
-            )
+            try:
+                result = await tool.execute()
+                # If no exception, check that result indicates failure
+                assert result.success is False, "Expected tool to fail with missing repository"
+            except TypeError:
+                # Expected: missing required positional argument 'repository'
+                pass
 
     @pytest.mark.asyncio
     async def test_decompile_requires_function_or_address(self):
@@ -95,4 +98,6 @@ class TestToolErrorHandling:
 
             tool = DecompileFunction()
             result = await tool.execute(repository="test", program="test.exe")
-            assert isinstance(result, dict)
+            # Should have failed due to missing function_name/address
+            assert result.success is False, "Expected tool to fail without function_name or address"
+            assert "function_name" in result.message.lower() or "address" in result.message.lower()

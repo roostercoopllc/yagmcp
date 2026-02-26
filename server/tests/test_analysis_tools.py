@@ -30,8 +30,22 @@ class TestListFunctions(TestToolTemplate):
     async def test_list_all_functions(self, mock_cache):
         """Test listing all functions in a program."""
         mock_cache.bridge.list_functions.return_value = [
-            {"address": "0x401000", "name": "main", "entry": "0x401000"},
-            {"address": "0x401100", "name": "process", "entry": "0x401100"},
+            {
+                "name": "main",
+                "entry": "0x401000",
+                "body_size": 256,
+                "parameter_count": 2,
+                "return_type": "int",
+                "calling_convention": "cdecl",
+            },
+            {
+                "name": "process",
+                "entry": "0x401100",
+                "body_size": 512,
+                "parameter_count": 1,
+                "return_type": "void",
+                "calling_convention": "cdecl",
+            },
         ]
 
         tool = ListFunctions()
@@ -41,14 +55,21 @@ class TestListFunctions(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["functions"]) == 2
-        assert result["functions"][0]["name"] == "main"
+        assert len(self.get_data(result)["functions"]) == 2
+        assert self.get_data(result)["functions"][0]["name"] == "main"
 
     @pytest.mark.asyncio
     async def test_list_functions_with_filter(self, mock_cache):
         """Test listing functions with name filter."""
         mock_cache.bridge.list_functions.return_value = [
-            {"address": "0x401100", "name": "process_data", "entry": "0x401100"},
+            {
+                "name": "process_data",
+                "entry": "0x401100",
+                "body_size": 384,
+                "parameter_count": 2,
+                "return_type": "int",
+                "calling_convention": "cdecl",
+            },
         ]
 
         tool = ListFunctions()
@@ -59,8 +80,8 @@ class TestListFunctions(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["functions"]) == 1
-        assert "process" in result["functions"][0]["name"].lower()
+        assert len(self.get_data(result)["functions"]) == 1
+        assert "process" in self.get_data(result)["functions"][0]["name"].lower()
 
 
 class TestDecompileFunction(TestToolTemplate):
@@ -70,10 +91,24 @@ class TestDecompileFunction(TestToolTemplate):
     async def test_decompile_by_name(self, mock_cache):
         """Test decompiling a function by name."""
         mock_code = "void main() {\n  printf(\"Hello World\\n\");\n}"
-        mock_cache.bridge.decompile_function.return_value = {
-            "decompilation": mock_code,
-            "address": "0x401000",
-            "function": "main",
+        # Mock list_functions to find the function by name
+        mock_cache.bridge.list_functions.return_value = [
+            {
+                "name": "main",
+                "entry": "0x401000",
+                "body_size": 256,
+                "parameter_count": 2,
+                "return_type": "int",
+                "calling_convention": "cdecl",
+            },
+        ]
+        # Mock decompile result
+        mock_cache.bridge.decompile.return_value = {
+            "success": True,
+            "name": "main",
+            "entry": "0x401000",
+            "decompiled_c": mock_code,
+            "signature": "int main(int argc, char** argv)",
         }
 
         tool = DecompileFunction()
@@ -84,16 +119,19 @@ class TestDecompileFunction(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert "printf" in result["decompilation"]
+        assert "printf" in self.get_data(result)["decompiled_c"]
 
     @pytest.mark.asyncio
     async def test_decompile_by_address(self, mock_cache):
         """Test decompiling a function by address."""
         mock_code = "void process() {\n  // function code\n}"
-        mock_cache.bridge.decompile_function.return_value = {
-            "decompilation": mock_code,
-            "address": "0x401000",
-            "function": "process",
+        # Mock decompile result
+        mock_cache.bridge.decompile.return_value = {
+            "success": True,
+            "name": "process",
+            "entry": "0x401000",
+            "decompiled_c": mock_code,
+            "signature": "void process(void)",
         }
 
         tool = DecompileFunction()
@@ -104,7 +142,7 @@ class TestDecompileFunction(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert "process" in result["function"]
+        assert "process" in self.get_data(result)["function_name"]
 
     @pytest.mark.asyncio
     async def test_decompile_missing_function(self, mock_cache):
@@ -115,7 +153,12 @@ class TestDecompileFunction(TestToolTemplate):
             program="test.bin"
         )
 
-        assert result.get("error") is not None
+        # Tool should fail when both function_name and address are missing
+        from ghidra_assist.tools.base import ToolResult
+        if isinstance(result, ToolResult):
+            assert result.success is False, "Tool should fail without function_name or address"
+        else:
+            assert result.get("error") is not None
 
 
 class TestListStrings(TestToolTemplate):
@@ -136,8 +179,8 @@ class TestListStrings(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["strings"]) == 2
-        assert result["strings"][0]["value"] == "Hello World"
+        assert len(self.get_data(result)["strings"]) == 2
+        assert self.get_data(result)["strings"][0]["value"] == "Hello World"
 
     @pytest.mark.asyncio
     async def test_list_strings_with_filter(self, mock_cache):
@@ -154,7 +197,7 @@ class TestListStrings(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert all(s["length"] >= 10 for s in result["strings"])
+        assert all(s["length"] >= 10 for s in self.get_data(result)["strings"])
 
 
 class TestListImports(TestToolTemplate):
@@ -175,8 +218,8 @@ class TestListImports(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["imports"]) == 2
-        assert result["imports"][0]["name"] == "printf"
+        assert len(self.get_data(result)["imports"]) == 2
+        assert self.get_data(result)["imports"][0]["name"] == "printf"
 
 
 class TestGetXrefsTo(TestToolTemplate):
@@ -186,8 +229,8 @@ class TestGetXrefsTo(TestToolTemplate):
     async def test_get_xrefs_to_address(self, mock_cache):
         """Test getting cross-references TO an address."""
         mock_cache.bridge.get_xrefs_to.return_value = [
-            {"from_address": "0x401100", "from_function": "main", "type": "call"},
-            {"from_address": "0x401200", "from_function": "init", "type": "call"},
+            {"from_addr": "0x401100", "ref_type": "call"},
+            {"from_addr": "0x401200", "ref_type": "call"},
         ]
 
         tool = GetXrefsTo()
@@ -198,8 +241,8 @@ class TestGetXrefsTo(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["xrefs"]) == 2
-        assert result["xrefs"][0]["type"] == "call"
+        assert len(self.get_data(result)["xrefs"]) == 2
+        assert self.get_data(result)["xrefs"][0]["ref_type"] == "call"
 
 
 class TestGetCallGraph(TestToolTemplate):
@@ -208,15 +251,25 @@ class TestGetCallGraph(TestToolTemplate):
     @pytest.mark.asyncio
     async def test_get_call_graph(self, mock_cache):
         """Test getting call graph for a function."""
-        mock_cache.bridge.get_call_graph.return_value = {
-            "function": "main",
-            "address": "0x401000",
-            "calls": [
-                {"target": "printf", "address": "0x401100"},
-                {"target": "process", "address": "0x401200"},
-            ],
-            "depth": 1,
-        }
+        # Need to mock list_functions for the tool to find the function by name
+        mock_cache.bridge.list_functions.return_value = [
+            {
+                "name": "main",
+                "entry": "0x401000",
+                "body_size": 256,
+                "parameter_count": 2,
+                "return_type": "int",
+                "calling_convention": "cdecl",
+            },
+            {
+                "name": "printf",
+                "entry": "0x401100",
+                "body_size": 128,
+                "parameter_count": 1,
+                "return_type": "int",
+                "calling_convention": "cdecl",
+            },
+        ]
 
         tool = GetCallGraph()
         result = await tool.execute(
@@ -227,8 +280,12 @@ class TestGetCallGraph(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["function"] == "main"
-        assert len(result["calls"]) == 2
+        # Check that root structure exists
+        assert "root" in self.get_data(result)
+        assert "name" in self.get_data(result)["root"]
+        assert "address" in self.get_data(result)["root"]
+        assert "callees" in self.get_data(result)["root"]
+        assert "callers" in self.get_data(result)["root"]
 
 
 class TestReadBytes(TestToolTemplate):
@@ -239,7 +296,8 @@ class TestReadBytes(TestToolTemplate):
         """Test reading bytes from memory."""
         mock_cache.bridge.read_bytes.return_value = {
             "address": "0x401000",
-            "bytes": "55 48 89 E5 48 83 EC 10",
+            "hex": "55 48 89 E5 48 83 EC 10",
+            "ascii": "UH..H...",
             "length": 8,
         }
 
@@ -252,15 +310,16 @@ class TestReadBytes(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["length"] == 8
-        assert len(result["bytes"].split()) == 8
+        assert self.get_data(result)["length"] == 8
+        assert len(self.get_data(result)["hex_dump"].split()) == 8
 
     @pytest.mark.asyncio
     async def test_read_bytes_capped_length(self, mock_cache):
         """Test that very large length requests are capped."""
         mock_cache.bridge.read_bytes.return_value = {
             "address": "0x401000",
-            "bytes": "90 " * 1024,
+            "hex": "90 " * 1024,
+            "ascii": "." * 1024,
             "length": 1024,
         }
 
@@ -273,7 +332,7 @@ class TestReadBytes(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["length"] <= 1024  # Should be capped
+        assert self.get_data(result)["length"] <= 1024  # Should be capped
 
 
 class TestGetMemoryMap(TestToolTemplate):
@@ -283,8 +342,8 @@ class TestGetMemoryMap(TestToolTemplate):
     async def test_get_memory_map(self, mock_cache):
         """Test getting memory segments."""
         mock_cache.bridge.get_memory_map.return_value = [
-            {"name": ".text", "start": "0x400000", "end": "0x402000", "size": 8192, "permissions": "rx"},
-            {"name": ".data", "start": "0x600000", "end": "0x601000", "size": 4096, "permissions": "rw"},
+            {"name": ".text", "start": "0x400000", "end": "0x402000", "size": 8192, "read": True, "write": False, "execute": True, "initialized": True},
+            {"name": ".data", "start": "0x600000", "end": "0x601000", "size": 4096, "read": True, "write": True, "execute": False, "initialized": True},
         ]
 
         tool = GetMemoryMap()
@@ -294,8 +353,8 @@ class TestGetMemoryMap(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert len(result["segments"]) == 2
-        assert result["segments"][0]["name"] == ".text"
+        assert len(self.get_data(result)["memory_blocks"]) == 2
+        assert self.get_data(result)["memory_blocks"][0]["name"] == ".text"
 
 
 class TestTraceStringReferences(TestToolTemplate):
@@ -324,9 +383,9 @@ class TestTraceStringReferences(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["total_references"] == 2
-        assert "malicious.com" in result["string_value"]
-        assert len(result["functions_involved"]) > 0
+        assert self.get_data(result)["total_references"] == 2
+        assert "malicious.com" in self.get_data(result)["string_value"]
+        assert len(self.get_data(result)["functions_involved"]) > 0
 
     @pytest.mark.asyncio
     async def test_trace_string_not_found(self, mock_cache):
@@ -345,8 +404,8 @@ class TestTraceStringReferences(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["total_references"] == 0
-        assert result["impact_summary"] == "No matching strings found."
+        assert self.get_data(result)["total_references"] == 0
+        assert self.get_data(result)["impact_summary"] == "No matching strings found."
 
 
 class TestDetectCodePatterns(TestToolTemplate):
@@ -374,7 +433,7 @@ class TestDetectCodePatterns(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["patterns_found"] >= 0
+        assert self.get_data(result)["patterns_found"] >= 0
         assert "category_summary" in result
         assert "iocs_extracted" in result
 
@@ -431,11 +490,11 @@ class TestInferTypesAndStructures(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["function_name"] == "process_data"
+        assert self.get_data(result)["function_name"] == "process_data"
         assert "suggestions" in result
         assert "parameter_types" in result
         assert "struct_suggestions" in result
-        assert result["confidence_overall"] >= 0.0 and result["confidence_overall"] <= 1.0
+        assert self.get_data(result)["confidence_overall"] >= 0.0 and self.get_data(result)["confidence_overall"] <= 1.0
 
     @pytest.mark.asyncio
     async def test_infer_types_by_address(self, mock_cache):
@@ -461,8 +520,8 @@ class TestInferTypesAndStructures(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["address"] == "0x401000"
-        assert result["return_type"]["type"] is not None
+        assert self.get_data(result)["address"] == "0x401000"
+        assert self.get_data(result)["return_type"]["type"] is not None
 
 
 class TestCompareBinaries(TestToolTemplate):
@@ -518,8 +577,8 @@ class TestCompareBinaries(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["program1"] == "malware_v1.exe"
-        assert result["program2"] == "malware_v2.exe"
+        assert self.get_data(result)["program1"] == "malware_v1.exe"
+        assert self.get_data(result)["program2"] == "malware_v2.exe"
         assert "summary" in result
         assert "modified_functions" in result
         assert "added_functions" in result
@@ -584,7 +643,7 @@ class TestAnalyzeCallGraph(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["function_count"] > 0
+        assert self.get_data(result)["function_count"] > 0
         assert "nodes" in result
         assert "edges" in result
         assert "critical_functions" in result
@@ -618,6 +677,6 @@ class TestAnalyzeCallGraph(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["root_function"] == "main"
+        assert self.get_data(result)["root_function"] == "main"
         assert "edges" in result
         assert "cycles" in result

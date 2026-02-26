@@ -43,8 +43,8 @@ class TestRenameFunction(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["old_name"] == "old_func"
-        assert result["new_name"] == "new_func"
+        assert self.get_data(result)["old_name"] == "old_func"
+        assert self.get_data(result)["new_name"] == "new_func"
         mock_cache.bridge.rename_function.assert_called_once()
 
     @pytest.mark.asyncio
@@ -84,9 +84,9 @@ class TestRenameVariable(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["kind"] == "parameter"
-        assert result["old_name"] == "param1"
-        assert result["new_name"] == "buffer"
+        assert self.get_data(result)["kind"] == "parameter"
+        assert self.get_data(result)["old_name"] == "param1"
+        assert self.get_data(result)["new_name"] == "buffer"
 
     @pytest.mark.asyncio
     async def test_rename_local_variable(self, mock_cache):
@@ -109,7 +109,7 @@ class TestRenameVariable(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["kind"] == "local_variable"
+        assert self.get_data(result)["kind"] == "local_variable"
 
     @pytest.mark.asyncio
     async def test_rename_variable_missing_function_context(self, mock_cache):
@@ -149,8 +149,8 @@ class TestSetComment(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["new_comment"] == "Entry point"
-        assert result["comment_type"] == "eol"
+        assert self.get_data(result)["new_comment"] == "Entry point"
+        assert self.get_data(result)["comment_type"] == "eol"
 
     @pytest.mark.asyncio
     async def test_set_precomment(self, mock_cache):
@@ -173,7 +173,7 @@ class TestSetComment(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["comment_type"] == "pre"
+        assert self.get_data(result)["comment_type"] == "pre"
 
 
 class TestPatchBytes(TestToolTemplate):
@@ -199,8 +199,8 @@ class TestPatchBytes(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["length"] == 2
-        assert result["new_bytes"] == "90 90"
+        assert self.get_data(result)["length"] == 2
+        assert self.get_data(result)["new_bytes"] == "90 90"
 
     @pytest.mark.asyncio
     async def test_patch_bytes_invalid_hex(self, mock_cache):
@@ -243,7 +243,7 @@ class TestRenameLabel(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["new_name"] == "main_entry"
+        assert self.get_data(result)["new_name"] == "main_entry"
 
     @pytest.mark.asyncio
     async def test_rename_existing_label(self, mock_cache):
@@ -264,5 +264,5 @@ class TestRenameLabel(TestToolTemplate):
         )
 
         self.assert_success(result)
-        assert result["old_name"] == "FUN_00401000"
-        assert result["new_name"] == "process_input"
+        assert self.get_data(result)["old_name"] == "FUN_00401000"
+        assert self.get_data(result)["new_name"] == "process_input"

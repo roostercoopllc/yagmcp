@@ -138,16 +138,32 @@ def mock_cache(mock_program):
         "indicators_used": {},
         "confidence": "low",
     }
-    bridge.decompile_function.return_value = {
-        "decompilation": "void test_func() { int x = 0; }",
-        "function": "test_func",
-        "address": "0x401000",
+    bridge.decompile.return_value = {
+        "success": True,
+        "name": "test_func",
+        "entry": "0x401000",
+        "decompiled_c": "void test_func() { int x = 0; }",
+        "signature": "void test_func(void)",
     }
     bridge.get_xrefs_to.return_value = []
     bridge.get_xrefs_from.return_value = []
     bridge.list_functions.return_value = [
-        {"name": "main", "address": "0x401000", "size": 256},
-        {"name": "helper", "address": "0x401100", "size": 128},
+        {
+            "name": "main",
+            "entry": "0x401000",
+            "body_size": 256,
+            "parameter_count": 2,
+            "return_type": "int",
+            "calling_convention": "cdecl",
+        },
+        {
+            "name": "helper",
+            "entry": "0x401100",
+            "body_size": 128,
+            "parameter_count": 1,
+            "return_type": "void",
+            "calling_convention": "cdecl",
+        },
     ]
 
     cache.bridge = bridge
@@ -195,23 +211,4 @@ def mock_get_cache(mock_cache, monkeypatch):
         monkeypatch.setattr(module, "_get_cache", lambda: mock_cache)
 
 
-class TestToolTemplate:
-    """Base class for tool tests with common assertions."""
-
-    @staticmethod
-    def assert_success(result: Dict[str, Any]) -> None:
-        """Assert that a tool result indicates success."""
-        assert isinstance(result, dict), "Tool must return a dict"
-        assert result.get("success") != False, f"Tool returned error: {result.get('error', 'Unknown error')}"
-
-    @staticmethod
-    def assert_error(result: Dict[str, Any], error_substring: str = "") -> None:
-        """Assert that a tool result indicates an error."""
-        assert isinstance(result, dict), "Tool must return a dict"
-        assert result.get("success") == False or "error" in result, "Tool should indicate error"
-        if error_substring and "error" in result:
-            assert error_substring.lower() in result["error"].lower(), \
-                f"Expected error to contain '{error_substring}', got: {result['error']}"
-
-
-__all__ = ["TestToolTemplate", "mock_program", "mock_function", "mock_address", "mock_cache"]
+__all__ = ["mock_program", "mock_function", "mock_address", "mock_cache"]
