@@ -369,9 +369,16 @@ async def chat(
     # Tracks whether this model rejected native tool calling and must run without tools.
     no_tools = False
 
-    # 180s per Ollama call; up to max_turns calls per request.
-    # Large models (20B+) can take >90s to respond on first load; 180s is more robust.
-    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=180.0, write=10.0, pool=5.0)) as client:
+    # Per-call read timeout from settings (default 300s).
+    # Large models (20B+) with big decompilation contexts can take >180s on first load.
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(
+            connect=10.0,
+            read=float(settings.ollama_timeout),
+            write=10.0,
+            pool=5.0,
+        )
+    ) as client:
         for turn in range(max_turns):
             turns_used = turn + 1
             logger.debug("Agent loop turn %d/%d", turns_used, max_turns)
