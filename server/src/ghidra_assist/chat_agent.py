@@ -329,8 +329,13 @@ async def chat(
         message,
     )
 
-    # Build context-aware system prompt
+    # Build context-aware system prompt.
+    # Decompilation is intentionally kept OUT of the system message — it is
+    # large and dramatically increases first-token latency on big models (20B+)
+    # running on CPU.  Instead it is prepended to the user turn below so the
+    # model sees it as conversation context rather than a system directive.
     system_content = SYSTEM_PROMPT
+    decompilation = ""
     if context:
         ctx_parts = []
         if context.get("repo"):
@@ -341,12 +346,10 @@ async def chat(
             ctx_parts.append(f"Current function: {context['function']}")
         if context.get("address"):
             ctx_parts.append(f"Current address: {context['address']}")
-        if context.get("decompilation"):
-            ctx_parts.append(
-                f"Decompiled code of current function:\n```c\n{context['decompilation']}\n```"
-            )
         if ctx_parts:
             system_content += "\n\nCurrent context:\n" + "\n".join(ctx_parts)
+        # Capture decompilation separately for injection into the user turn
+        decompilation = context.get("decompilation", "")
 
     # Retrieve or create conversation history
     messages = _get_conversation(conversation_id)
@@ -358,8 +361,17 @@ async def chat(
     elif messages[0]["role"] == "system":
         messages[0]["content"] = system_content
 
-    # Append the user message
-    messages.append({"role": "user", "content": message})
+    # Build the user message, prepending decompilation as inline context so it
+    # stays in the user turn (not the system prompt) to keep first-token latency low.
+    if decompilation:
+        func_name = context.get("function", "current function") if context else "current function"
+        user_content = (
+            f"[Decompiled code of {func_name}]\n```c\n{decompilation}\n```\n\n"
+            f"{message}"
+        )
+    else:
+        user_content = message
+    messages.append({"role": "user", "content": user_content})
 
     # Build Ollama tool descriptors
     ollama_tools = _build_ollama_tools()
