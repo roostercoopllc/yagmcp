@@ -565,6 +565,26 @@ public class ChatPanel extends JPanel {
                 var highFunc = decompResult.getHighFunction();
                 var localMap = highFunc.getLocalSymbolMap();
 
+                // Collect all symbols into a list (Iterator is single-pass)
+                List<HighSymbol> allSymbols = new ArrayList<>();
+                var symIter = localMap.getSymbols();
+                while (symIter.hasNext()) {
+                    allSymbols.add(symIter.next());
+                }
+
+                // Log available symbols for diagnostics
+                StringBuilder symNames = new StringBuilder("Available symbols: ");
+                for (HighSymbol hs : allSymbols) {
+                    symNames.append(hs.getName()).append(", ");
+                }
+                // Also log parameter names
+                symNames.append(" | Params: ");
+                for (var p : targetFunc.getParameters()) {
+                    symNames.append(p.getName()).append(", ");
+                }
+                final String symLog = symNames.toString();
+                SwingUtilities.invokeLater(() -> addMessage("system", symLog));
+
                 // Apply each rename in a single transaction
                 int txid = currentProgram.startTransaction("Rename variables");
                 try {
@@ -574,9 +594,7 @@ public class ChatPanel extends JPanel {
 
                         // Search high-level symbols (local variables + parameters)
                         HighSymbol target = null;
-                        var symIter = localMap.getSymbols();
-                        while (symIter.hasNext()) {
-                            HighSymbol sym = symIter.next();
+                        for (HighSymbol sym : allSymbols) {
                             if (sym.getName().equals(oldName)) {
                                 target = sym;
                                 break;
