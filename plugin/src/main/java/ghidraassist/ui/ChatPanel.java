@@ -71,7 +71,7 @@ public class ChatPanel extends JPanel {
     private JButton settingsButton;
 
     // Message area
-    private JPanel messagesPanel;
+    private ScrollablePanel messagesPanel;
     private JScrollPane messagesScroll;
 
     // Bottom bar
@@ -311,7 +311,7 @@ public class ChatPanel extends JPanel {
     }
 
     private void buildMessageArea() {
-        messagesPanel = new JPanel();
+        messagesPanel = new ScrollablePanel();
         messagesPanel.setLayout(new BoxLayout(messagesPanel, BoxLayout.Y_AXIS));
         messagesPanel.setBackground(PANEL_BG);
         messagesPanel.setBorder(new EmptyBorder(8, 8, 8, 8));
@@ -648,6 +648,40 @@ public class ChatPanel extends JPanel {
      */
     public void refreshConnectionStatus() {
         checkConnection();
+    }
+
+    // ========== Scrollable panel for word wrap ==========
+
+    /**
+     * A JPanel that implements Scrollable so the JScrollPane constrains its width
+     * to the viewport. This forces child JTextPanes to wrap text when the window
+     * is resized instead of expanding horizontally.
+     */
+    private static class ScrollablePanel extends JPanel implements Scrollable {
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 64;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true; // Constrain width to viewport → enables text wrap in child JTextPanes
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 
     // ========== Inner record for message history ==========

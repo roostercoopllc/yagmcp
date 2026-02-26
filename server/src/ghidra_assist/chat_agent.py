@@ -366,25 +366,77 @@ async def chat(
 
     tools_called: list[str] = []
     turns_used = 0
+    # Tracks whether this model rejected native tool calling and must run without tools.
+    no_tools = False
 
-    # 90s per Ollama call; up to max_turns calls per request
-    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=90.0, write=10.0, pool=5.0)) as client:
+    # 180s per Ollama call; up to max_turns calls per request.
+    # Large models (20B+) can take >90s to respond on first load; 180s is more robust.
+    async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10.0, read=180.0, write=10.0, pool=5.0)) as client:
         for turn in range(max_turns):
             turns_used = turn + 1
             logger.debug("Agent loop turn %d/%d", turns_used, max_turns)
 
+            payload: dict = {
+                "model": model,
+                "messages": messages,
+                "stream": False,
+            }
+            if not no_tools:
+                payload["tools"] = ollama_tools
+
             try:
                 resp = await client.post(
                     f"{settings.ollama_url}/api/chat",
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "tools": ollama_tools,
-                        "stream": False,
-                    },
+                    json=payload,
                 )
                 resp.raise_for_status()
                 data = resp.json()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (400, 422) and not no_tools:
+                    # Model doesn't support native tool calling (e.g. gpt-oss, some llama
+                    # variants).  Drop the tools field and rely on the text-based parser.
+                    logger.warning(
+                        "Model %s rejected tool spec (HTTP %d); retrying without tools",
+                        model,
+                        e.response.status_code,
+                    )
+                    no_tools = True
+                    payload.pop("tools", None)
+                    try:
+                        resp = await client.post(
+                            f"{settings.ollama_url}/api/chat",
+                            json=payload,
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                    except httpx.HTTPError as retry_err:
+                        logger.error("Ollama API error (no-tools retry): %s", retry_err)
+                        duration_ms = (time.time() - start) * 1000
+                        return {
+                            "response": (
+                                "I was unable to reach the language model. "
+                                "Please check the Ollama service."
+                            ),
+                            "tools_called": tools_called,
+                            "conversation_id": conversation_id,
+                            "turns_used": turns_used,
+                            "duration_ms": duration_ms,
+                            "error": str(retry_err),
+                        }
+                else:
+                    logger.error("Ollama API error (HTTP %d): %s", e.response.status_code, e)
+                    duration_ms = (time.time() - start) * 1000
+                    return {
+                        "response": (
+                            "I was unable to reach the language model. "
+                            "Please check the Ollama service."
+                        ),
+                        "tools_called": tools_called,
+                        "conversation_id": conversation_id,
+                        "turns_used": turns_used,
+                        "duration_ms": duration_ms,
+                        "error": str(e),
+                    }
             except httpx.HTTPError as e:
                 logger.error("Ollama API error: %s", e)
                 duration_ms = (time.time() - start) * 1000
