@@ -646,7 +646,10 @@ async def chat(
                         "action": "rename_variable",
                         "old_name": arguments.get("old_name", ""),
                         "new_name": arguments.get("new_name", ""),
-                        "function": arguments.get("function_name", ""),
+                        "function": (
+                            arguments.get("function_name")
+                            or context.get("function", "")
+                        ),
                     })
                     result = {
                         "success": True,
@@ -722,9 +725,22 @@ async def chat(
             break
 
     if not final_response:
-        final_response = (
-            "I processed your request but could not generate a text response."
-        )
+        if directives:
+            # Model emitted tool calls but no prose — build a summary from
+            # the directives so the user sees what will be applied.
+            rename_lines = [
+                f"- {d['old_name']} → {d['new_name']}"
+                for d in directives
+                if d.get("action") == "rename_variable"
+            ]
+            if rename_lines:
+                final_response = "Renaming variables:\n" + "\n".join(rename_lines)
+            else:
+                final_response = f"Applying {len(directives)} directive(s)."
+        else:
+            final_response = (
+                "I processed your request but could not generate a text response."
+            )
 
     duration_ms = (time.time() - start) * 1000
     logger.info(
