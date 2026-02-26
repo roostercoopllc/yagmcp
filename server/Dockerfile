@@ -52,7 +52,7 @@ COPY src/ src/
 
 # Install dependencies using uv (faster, deterministic, uses locked versions from uv.lock)
 # --compile-bytecode speeds up runtime startup
-RUN uv pip install --no-cache-dir --compile-bytecode .
+RUN uv pip install --no-cache-dir --compile-bytecode --system .
 
 # ============================= RUNTIME STAGE ================================
 FROM python:${PYTHON_VERSION}-slim AS runtime
