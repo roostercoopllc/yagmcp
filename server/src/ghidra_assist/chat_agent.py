@@ -407,6 +407,9 @@ async def chat(
     turns_used = 0
     # Tracks whether this model rejected native tool calling and must run without tools.
     no_tools = False
+    # Loop detection: track last failed tool call to break infinite retry loops.
+    _last_failed_call: str = ""
+    _consecutive_failures: int = 0
 
     # Per-call read timeout from settings (default 300s).
     # Large models (20B+) with big decompilation contexts can take >180s on first load.
@@ -530,6 +533,10 @@ async def chat(
                 tool_name = func_info.get("name", "")
                 arguments = func_info.get("arguments", {})
 
+                # Some models prefix tool names with "functions." — strip it.
+                if tool_name.startswith("functions."):
+                    tool_name = tool_name[len("functions."):]
+
                 logger.info(
                     "Agent calling tool: %s(%s)",
                     tool_name,
@@ -538,6 +545,38 @@ async def chat(
                 tools_called.append(tool_name)
 
                 result = await _execute_tool_call(tool_name, arguments)
+
+                # Loop detection: if the same tool+args fail twice in a row,
+                # break the agentic loop so the model can give a text response
+                # instead of burning all remaining turns retrying.
+                call_sig = f"{tool_name}:{json.dumps(arguments, sort_keys=True)}"
+                if "error" in result:
+                    if call_sig == _last_failed_call:
+                        _consecutive_failures += 1
+                    else:
+                        _last_failed_call = call_sig
+                        _consecutive_failures = 1
+                    if _consecutive_failures >= 2:
+                        logger.warning(
+                            "Tool %s failed twice with same args; breaking loop",
+                            tool_name,
+                        )
+                        # Inject a final user nudge so the model summarises
+                        messages.append({
+                            "role": "user",
+                            "content": (
+                                f"[Tool result for {tool_name}]: {json.dumps(result)}\n\n"
+                                "The tool is unavailable in this environment. "
+                                "Please summarise what changes you would make and stop calling tools."
+                            ),
+                        })
+                        # Force exit of both loops
+                        tool_calls = []
+                        turns_used = max_turns  # exhausts outer loop
+                        break
+                else:
+                    _last_failed_call = ""
+                    _consecutive_failures = 0
 
                 if text_based:
                     # For text-based tool calls use a user message so models

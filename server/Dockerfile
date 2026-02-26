@@ -95,6 +95,14 @@ RUN groupadd --gid 1000 ghidra \
 RUN mkdir -p /repos /data \
     && chown -R ghidra:ghidra /repos /data /home/ghidra
 
+# Create arch-independent JAVA_HOME symlink.
+# Adoptium JRE installs as temurin-21-jre-amd64 (or -arm64 on ARM).
+# pyghidra resolves JAVA_HOME via `java -cp LaunchSupport.jar LaunchSupport -jdk_home -save`,
+# which requires the path to exist exactly as JAVA_HOME.
+RUN arch=$(dpkg --print-architecture) \
+    && ln -sfn /usr/lib/jvm/temurin-${JAVA_VERSION}-jre-${arch} \
+               /usr/lib/jvm/temurin-${JAVA_VERSION}-jre
+
 # Set environment
 ENV PYTHONUNBUFFERED=1
 ENV GHIDRA_INSTALL_DIR=/opt/ghidra
