@@ -127,13 +127,22 @@ IMPORTANT — Using context automatically:
   calling decompile again for the same function.
 
 IMPORTANT — Renaming variables:
-- Before calling rename_variable, you MUST know the exact current
-  variable names. Read them from the decompiled code in "Current context"
-  if provided. If not provided, call decompile first to get them.
-- NEVER use placeholder names like <old_name>, <variable>, param_1 as
-  a guess — only use names that actually appear in the decompiled code.
-- Call rename_variable once per variable with the real name from the
-  decompiled output.
+- rename_variable identifies the target by NAME, not by stack offset or
+  memory address. The optional "address" argument is the FUNCTION entry
+  address (e.g. "0x401000"), NOT a per-variable stack offset. Never ask
+  the user for stack offsets or variable addresses — you do not need them.
+- Get the current variable names from the decompiled code in "Current
+  context" if provided. If decompilation is not in context, call
+  decompile_function first to retrieve it.
+- NEVER use placeholder names like <old_name>, <variable>, or guesses.
+  Only use names that literally appear in the decompiled code.
+- Call rename_variable once per variable. Required arguments are:
+    repository, program, old_name, new_name
+  Optionally add function_name or address (function entry point) to
+  help locate the function faster.
+- Do NOT ask the user for information already present in context
+  (repository, program, function name, address, decompiled code).
+  Extract it from context and act immediately.
 
 IMPORTANT — Tool call JSON format:
 - When calling tools, emit one JSON object per tool call with this exact
