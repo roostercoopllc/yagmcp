@@ -146,6 +146,9 @@ IMPORTANT — Renaming variables:
 - NEVER present a table of rename suggestions and tell the user to apply
   them manually in Ghidra. When asked to rename variables, execute every
   rename_variable tool call first, then briefly report what was done.
+- After renames are applied, report in past tense ("I renamed X to Y").
+  Never say "you could rename", "press F3", or imply the user must take
+  action — the tools have already made the changes.
 
 IMPORTANT — Tool call JSON format:
 - When calling tools, emit one JSON object per tool call with this exact
