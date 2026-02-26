@@ -98,44 +98,38 @@ public class GhidraAssistClient {
     }
 
     /**
-     * Fetches available models from Ollama server.
+     * Fetches available models from the YAGMCP server's /api/models endpoint,
+     * which proxies to the server's configured Ollama backend.
      *
      * @return CompletableFuture resolving to a list of available model names
      */
     public CompletableFuture<List<String>> fetchAvailableModels() {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                // Try to fetch from Ollama on localhost:11434
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create("http://localhost:11434/api/tags"))
-                        .header("Accept", "application/json")
-                        .timeout(Duration.ofSeconds(5))
-                        .GET()
-                        .build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(serverUrl + "/api/models"))
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
 
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-                if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+        return httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                .thenApply(response -> {
                     List<String> models = new ArrayList<>();
-
-                    if (json.has("models")) {
-                        JsonArray modelsArray = json.getAsJsonArray("models");
-                        for (JsonElement element : modelsArray) {
-                            JsonObject modelObj = element.getAsJsonObject();
-                            if (modelObj.has("name")) {
-                                models.add(modelObj.get("name").getAsString());
+                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                        try {
+                            JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                            if (json.has("models")) {
+                                JsonArray modelsArray = json.getAsJsonArray("models");
+                                for (JsonElement element : modelsArray) {
+                                    models.add(element.getAsString());
+                                }
                             }
+                        } catch (Exception e) {
+                            // Silently fall through to empty list
                         }
                     }
-
                     return models;
-                }
-            } catch (Exception e) {
-                // Silently fail and return empty list
-            }
-            return new ArrayList<>();
-        });
+                })
+                .exceptionally(e -> new ArrayList<>());
     }
 
     /**

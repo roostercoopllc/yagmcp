@@ -288,6 +288,23 @@ def main() -> None:
             logger.exception("Tool %s failed", tool_name)
             return JSONResponse({"error": str(e)}, status_code=500)
 
+    async def rest_models(request: Request) -> JSONResponse:
+        """GET /api/models -- list available Ollama models from configured backend."""
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(f"{settings.ollama_url}/api/tags")
+                r.raise_for_status()
+                data = r.json()
+                models = [m["name"] for m in data.get("models", [])]
+                return JSONResponse({"models": models, "ollama_url": settings.ollama_url})
+        except Exception as e:
+            logger.warning("Failed to fetch models from Ollama: %s", e)
+            return JSONResponse(
+                {"models": [settings.ollama_model], "ollama_url": settings.ollama_url}
+            )
+
     async def rest_chat(request: Request) -> JSONResponse:
         """POST /api/chat -- Ollama chat agent."""
         from .chat_agent import chat
@@ -327,6 +344,7 @@ def main() -> None:
     app.routes.extend(
         [
             Route("/api/health", rest_health, methods=["GET"]),
+            Route("/api/models", rest_models, methods=["GET"]),
             Route("/api/projects", rest_list_projects, methods=["GET"]),
             Route("/api/projects/{repo}", rest_list_programs, methods=["GET"]),
             Route("/api/tools/{tool_name}", rest_tool_handler, methods=["POST"]),

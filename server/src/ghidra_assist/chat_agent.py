@@ -18,7 +18,9 @@ Usage:
 from __future__ import annotations
 
 import inspect
+import json
 import logging
+import re
 import time
 import uuid
 from collections import OrderedDict
@@ -129,6 +131,57 @@ Keep responses focused and actionable. Prefer precision over verbosity.\
 
 # Tools excluded from the chat agent to prevent recursion
 _EXCLUDED_TOOLS = {"chat_with_ollama"}
+
+
+# ---------------------------------------------------------------------------
+# Text-based tool call parser (fallback for models without native tool_calls)
+# ---------------------------------------------------------------------------
+
+def _parse_text_tool_calls(content: str) -> list[dict]:
+    """Parse tool calls from model text content.
+
+    Some models emit tool calls as JSON text in their content field rather
+    than using the structured ``tool_calls`` field.  We scan for JSON objects
+    that contain both ``"name"`` and ``"arguments"`` keys and treat them as
+    tool invocations.
+
+    Returns a list in the same shape as Ollama's ``tool_calls`` list so the
+    rest of the agent loop can treat both paths identically.
+    """
+    calls: list[dict] = []
+    decoder = json.JSONDecoder()
+
+    # Strip markdown code fences so raw_decode sees clean JSON
+    cleaned = re.sub(r"```(?:json)?\s*", "", content)
+    cleaned = cleaned.replace("```", "")
+
+    pos = 0
+    while pos < len(cleaned):
+        # Fast-forward to the next opening brace
+        idx = cleaned.find("{", pos)
+        if idx == -1:
+            break
+        try:
+            obj, end_pos = decoder.raw_decode(cleaned, idx)
+            pos = end_pos
+            if (
+                isinstance(obj, dict)
+                and "name" in obj
+                and "arguments" in obj
+                and isinstance(obj["arguments"], dict)
+            ):
+                calls.append(
+                    {
+                        "function": {
+                            "name": obj["name"],
+                            "arguments": obj["arguments"],
+                        }
+                    }
+                )
+        except (json.JSONDecodeError, ValueError):
+            pos = idx + 1
+
+    return calls
 
 
 # ---------------------------------------------------------------------------
@@ -333,11 +386,28 @@ async def chat(
             assistant_msg = data.get("message", {})
             messages.append(assistant_msg)
 
-            # Check for tool calls
+            # Check for structured tool calls (native Ollama function calling)
             tool_calls = assistant_msg.get("tool_calls")
+            text_based = False
+
             if not tool_calls:
-                # No tool calls -- model gave a final answer
-                break
+                # Fallback: parse JSON tool calls from text content.
+                # Some models (qwen2.5-coder etc.) write tool invocations as
+                # JSON in their content field instead of using tool_calls.
+                content = assistant_msg.get("content", "")
+                if content:
+                    tool_calls = _parse_text_tool_calls(content)
+                    if tool_calls:
+                        text_based = True
+                        logger.debug(
+                            "Parsed %d text-based tool calls from content",
+                            len(tool_calls),
+                        )
+                    else:
+                        # Genuinely no tool calls -- model gave a final answer
+                        break
+                else:
+                    break
 
             # Execute each tool call and feed results back
             for tc in tool_calls:
@@ -354,18 +424,36 @@ async def chat(
 
                 result = await _execute_tool_call(tool_name, arguments)
 
-                messages.append(
-                    {
-                        "role": "tool",
-                        "content": str(result),
-                    }
-                )
+                if text_based:
+                    # For text-based tool calls use a user message so models
+                    # that don't understand the "tool" role still see the result
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": (
+                                f"[Tool result for {tool_name}]: {json.dumps(result)}"
+                            ),
+                        }
+                    )
+                else:
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "content": str(result),
+                        }
+                    )
 
-    # Extract final assistant response
+    # Extract final assistant response.
+    # Skip messages whose entire content is raw JSON tool calls -- those were
+    # emitted by models that don't use the native tool_calls field.  A real
+    # prose response never starts with a bare "{".
     final_response = ""
     for msg in reversed(messages):
         if msg.get("role") == "assistant" and msg.get("content"):
-            final_response = msg["content"]
+            content = msg["content"]
+            if content.strip().startswith("{") and _parse_text_tool_calls(content):
+                continue  # This was a text-based tool call message, not prose
+            final_response = content
             break
 
     if not final_response:
