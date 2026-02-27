@@ -95,7 +95,7 @@ GhidraAssistProvider (ComponentProvider)
 
 ### Build
 ```bash
-cd /mnt/d/code/home-automation-code/yagmcp/plugin
+cd plugin/
 export GHIDRA_INSTALL_DIR=/path/to/ghidra  # (or use gradle property)
 gradle build
 ```

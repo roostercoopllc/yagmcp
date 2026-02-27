@@ -10,5 +10,5 @@
 services:
   yagmcp-server:
     volumes:
-      - /mnt/nas/Ghidra Work:/repos:ro
+      - ${REPOS_HOST_DIR:-/mnt/nas/ghidra-repos}:/repos:ro
       - ./data:/data
