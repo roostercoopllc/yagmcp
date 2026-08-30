@@ -1,7 +1,7 @@
-"""Chat agent tool — wraps the Ollama agent loop.
+"""Chat agent tool — wraps the LLM agent loop.
 
 Tools:
-    ghidra_chat — receives context + question, runs Ollama agent loop
+    ghidra_chat — receives context + question, runs LLM agent loop
                   with access to all other Ghidra analysis tools.
 """
 

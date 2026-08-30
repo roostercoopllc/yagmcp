@@ -213,7 +213,7 @@ public class SettingsDialog extends JDialog {
 
         // Create a temporary client with the entered URL to test
         Object selectedModel = modelComboBox.getSelectedItem();
-        String model = selectedModel != null ? selectedModel.toString().trim() : "qwen2.5-coder:7b";
+        String model = selectedModel != null ? selectedModel.toString().trim() : "RedHatAI/Llama-4-Maverick-17B-128E-Instruct-quantized.w4a16";
         GhidraAssistClient testClient = new GhidraAssistClient(url, model);
         testClient.testConnection().thenAccept(success -> {
             SwingUtilities.invokeLater(() -> {

@@ -3,7 +3,7 @@
 Creates and runs the MCP server with:
 - Ghidra analysis tools exposed via the MCP protocol
 - REST API endpoints for the Ghidra-Assist web UI and direct integration
-- Ollama-powered chat agent for LLM-assisted reverse engineering
+- LLM-powered chat agent for LLM-assisted reverse engineering
 - CORS enabled for LAN use
 
 Usage:
@@ -105,7 +105,7 @@ def create_app() -> FastMCP:
             "- IOC extraction -- IPs, URLs, domains, registry keys (extract_iocs)\n"
             "- Anti-analysis detection with bypass suggestions (detect_anti_analysis)\n"
             "- YARA rule generation from binary indicators (generate_yara)\n"
-            "- LLM-assisted chat (chat_with_ollama)\n"
+            "- LLM-assisted chat (ghidra_chat)\n"
         ),
     )
 
@@ -289,24 +289,29 @@ def main() -> None:
             return JSONResponse({"error": str(e)}, status_code=500)
 
     async def rest_models(request: Request) -> JSONResponse:
-        """GET /api/models -- list available Ollama models from configured backend."""
+        """GET /api/models -- list available models from the configured backend."""
         import httpx
+
+        from .llm_client import list_models
 
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                r = await client.get(f"{settings.ollama_url}/api/tags")
-                r.raise_for_status()
-                data = r.json()
-                models = [m["name"] for m in data.get("models", [])]
-                return JSONResponse({"models": models, "ollama_url": settings.ollama_url})
+                models = await list_models(
+                    client,
+                    base_url=settings.llm_base_url,
+                    api_key=settings.llm_api_key,
+                )
+                return JSONResponse(
+                    {"models": models, "llm_base_url": settings.llm_base_url}
+                )
         except Exception as e:
-            logger.warning("Failed to fetch models from Ollama: %s", e)
+            logger.warning("Failed to fetch models from the LLM backend: %s", e)
             return JSONResponse(
-                {"models": [settings.ollama_model], "ollama_url": settings.ollama_url}
+                {"models": [settings.llm_model], "llm_base_url": settings.llm_base_url}
             )
 
     async def rest_chat(request: Request) -> JSONResponse:
-        """POST /api/chat -- Ollama chat agent."""
+        """POST /api/chat -- LLM chat agent."""
         from .chat_agent import chat
 
         try:
@@ -458,7 +463,7 @@ def _build_openapi_spec() -> dict:
         },
         "/api/chat": {
             "post": {
-                "summary": "Chat with Ollama reverse-engineering assistant",
+                "summary": "Chat with the reverse-engineering assistant",
                 "operationId": "chat",
                 "requestBody": {
                     "required": True,
@@ -482,7 +487,7 @@ def _build_openapi_spec() -> dict:
                                     },
                                     "model": {
                                         "type": "string",
-                                        "description": "Ollama model override",
+                                        "description": "Model id override",
                                     },
                                 },
                             }
@@ -572,7 +577,7 @@ def _build_openapi_spec() -> dict:
             "version": __version__,
             "description": (
                 "REST API for Ghidra reverse-engineering analysis and "
-                "Ollama-powered chat assistant."
+                "LLM-powered chat assistant."
             ),
         },
         "servers": [

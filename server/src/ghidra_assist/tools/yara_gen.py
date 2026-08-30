@@ -2,7 +2,7 @@
 
 Tools:
     generate_yara -- gather indicators from a binary (strings, imports,
-        byte patterns) and use Ollama to synthesize a YARA detection rule.
+        byte patterns) and use the LLM to synthesize a YARA detection rule.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from typing import Any, Dict
 import httpx
 
 from ghidra_assist.config import settings
+from ghidra_assist.llm_client import chat_completion, extract_message
 from ghidra_assist.project_cache import ProjectCache
 from ghidra_assist.tools import register_tool
 from ghidra_assist.tools.base import BaseTool, ToolCategory
@@ -65,7 +66,7 @@ class GenerateYara(BaseTool):
     name = "generate_yara"
     description = (
         "Generate a YARA detection rule for a binary by gathering indicators "
-        "(strings, imports, byte patterns) and using Ollama to synthesize "
+        "(strings, imports, byte patterns) and using the LLM to synthesize "
         "the rule."
     )
     category = ToolCategory.ANALYSIS
@@ -149,26 +150,36 @@ class GenerateYara(BaseTool):
                 rule_name, program_name, indicators
             )
 
-            # ---- Call Ollama to generate the rule ------------------------
-            actual_model = model or settings.ollama_model
+            # ---- Call the LLM to generate the rule -----------------------
+            actual_model = model or settings.llm_model
             rule_text = ""
             llm_error = ""
 
             try:
-                async with httpx.AsyncClient(timeout=120.0) as client:
-                    resp = await client.post(
-                        f"{settings.ollama_url}/api/generate",
-                        json={
-                            "model": actual_model,
-                            "prompt": llm_prompt,
-                            "stream": False,
-                        },
+                async with httpx.AsyncClient(
+                    timeout=float(settings.llm_timeout_seconds)
+                ) as client:
+                    data = await chat_completion(
+                        client,
+                        base_url=settings.llm_base_url,
+                        api_key=settings.llm_api_key,
+                        model=actual_model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are a malware analyst. Emit exactly one "
+                                    "YARA rule and nothing else."
+                                ),
+                            },
+                            {"role": "user", "content": llm_prompt},
+                        ],
+                        max_tokens=1024,
+                        temperature=0.2,
                     )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    rule_text = data.get("response", "").strip()
+                    rule_text = (extract_message(data).get("content") or "").strip()
             except httpx.HTTPError as e:
-                llm_error = f"Ollama request failed: {e}"
+                llm_error = f"LLM request failed: {e}"
                 logger.error("YARA generation LLM call failed: %s", e)
 
             # Extract just the YARA rule if the LLM wrapped it in markdown

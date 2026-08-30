@@ -1,9 +1,9 @@
-"""Ollama-powered chat agent with MCP tool calling.
+"""LLM-powered chat agent with MCP tool calling.
 
-Receives a user message with optional reverse-engineering context,
-sends it to Ollama with available Ghidra-Assist tools in function-calling
-format, executes any tool calls against the MCP tool registry, and
-returns the final response.
+Receives a user message with optional reverse-engineering context, sends it to
+an OpenAI-compatible endpoint with available Ghidra-Assist tools in
+function-calling format, executes any tool calls against the MCP tool registry,
+and returns the final response.
 
 Usage:
     from ghidra_assist.chat_agent import chat
@@ -29,6 +29,13 @@ from typing import Any
 import httpx
 
 from .config import settings
+from .llm_client import (
+    chat_completion,
+    extract_message,
+    normalize_assistant_message,
+    parse_tool_arguments,
+    tool_result_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,12 +167,15 @@ IMPORTANT — Tool call JSON format:
 Keep responses focused and actionable. Prefer precision over verbosity.\
 """
 
-# Tools excluded from the chat agent to prevent recursion
-_EXCLUDED_TOOLS = {"chat_with_ollama"}
+# Tools excluded from the chat agent to prevent recursion.
+# This must match the registered tool name in tools/chat.py — the previous
+# value ("chat_with_ollama") matched nothing, so the agent advertised itself
+# to itself.
+_EXCLUDED_TOOLS = {"ghidra_chat"}
 
 # When decompilation is already in context the model only needs to apply edits,
 # not query the binary.  Sending all 34 tool schemas adds ~5 000 tokens of
-# overhead per Ollama call — a 7-8× slowdown on CPU-bound large models (20B+).
+# overhead per LLM call — a 7-8× slowdown on CPU-bound large models (20B+).
 # This reduced set keeps the tool schema under ~700 tokens.
 _MODIFICATION_TOOLS = {
     "rename_function",
@@ -188,7 +198,7 @@ def _parse_text_tool_calls(content: str) -> list[dict]:
     that contain both ``"name"`` and ``"arguments"`` keys and treat them as
     tool invocations.
 
-    Returns a list in the same shape as Ollama's ``tool_calls`` list so the
+    Returns a list in the same shape as the API's ``tool_calls`` list so the
     rest of the agent loop can treat both paths identically.
     """
     calls: list[dict] = []
@@ -279,13 +289,13 @@ def _parse_rename_table(content: str) -> list[tuple[str, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Ollama tool-schema builder
+# Tool-schema builder
 # ---------------------------------------------------------------------------
 
-def _build_ollama_tools() -> list[dict]:
-    """Convert the MCP tool registry into Ollama function-calling format.
+def _build_tool_schemas() -> list[dict]:
+    """Convert the MCP tool registry into OpenAI function-calling format.
 
-    Returns a list of Ollama tool descriptors with JSON-schema parameters
+    Returns a list of OpenAI tool descriptors with JSON-schema parameters
     derived from each tool's ``execute()`` signature.
     """
     from .tools import TOOL_REGISTRY, get_all_tools
@@ -381,7 +391,7 @@ async def chat(
     model: str | None = None,
     max_turns: int = 8,
 ) -> dict:
-    """Run the Ollama chat agent loop.
+    """Run the LLM chat agent loop.
 
     Args:
         message: User's natural-language question or instruction.
@@ -389,7 +399,7 @@ async def chat(
             ``function``, ``address`` to scope the conversation.
         conversation_id: Opaque string for multi-turn threading.
             A new ID is generated if not provided.
-        model: Ollama model override (defaults to ``settings.ollama_model``).
+        model: Model id override (defaults to ``settings.llm_model``).
         max_turns: Maximum agent-loop iterations before returning.
 
     Returns:
@@ -397,7 +407,7 @@ async def chat(
     """
     start = time.time()
     conversation_id = conversation_id or str(uuid.uuid4())
-    model = model or settings.ollama_model
+    model = model or settings.llm_model
     context = context or {}
 
     logger.info(
@@ -451,23 +461,23 @@ async def chat(
         user_content = message
     messages.append({"role": "user", "content": user_content})
 
-    # Build Ollama tool descriptors.
+    # Build tool descriptors.
     # When decompilation is already in context we only need modification tools
     # (~700 tokens vs ~5 000 tokens for all 34 tools).  Fewer tokens = much
     # faster first-token latency on CPU-bound large models.
-    all_tools = _build_ollama_tools()
+    all_tools = _build_tool_schemas()
     if decompilation:
-        ollama_tools = [
+        tool_schemas = [
             t for t in all_tools
             if t["function"]["name"] in _MODIFICATION_TOOLS
         ]
         logger.debug(
             "Decompilation context present: using %d modification tools (was %d)",
-            len(ollama_tools),
+            len(tool_schemas),
             len(all_tools),
         )
     else:
-        ollama_tools = all_tools
+        tool_schemas = all_tools
 
     tools_called: list[str] = []
     # Directives are client-side actions the plugin should execute directly
@@ -487,7 +497,7 @@ async def chat(
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(
             connect=10.0,
-            read=float(settings.ollama_timeout),
+            read=float(settings.llm_timeout_seconds),
             write=10.0,
             pool=5.0,
         )
@@ -496,46 +506,45 @@ async def chat(
             turns_used = turn + 1
             logger.debug("Agent loop turn %d/%d", turns_used, max_turns)
 
-            payload: dict = {
-                "model": model,
-                "messages": messages,
-                "stream": False,
-            }
-            if not no_tools:
-                payload["tools"] = ollama_tools
-
             try:
-                resp = await client.post(
-                    f"{settings.ollama_url}/api/chat",
-                    json=payload,
+                data = await chat_completion(
+                    client,
+                    base_url=settings.llm_base_url,
+                    api_key=settings.llm_api_key,
+                    model=model,
+                    messages=messages,
+                    tools=None if no_tools else tool_schemas,
+                    max_tokens=settings.llm_max_tokens,
                 )
-                resp.raise_for_status()
-                data = resp.json()
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (400, 422) and not no_tools:
-                    # Model doesn't support native tool calling (e.g. gpt-oss, some llama
-                    # variants).  Drop the tools field and rely on the text-based parser.
+                    # Server rejected the tool spec — most likely vLLM running
+                    # without --enable-auto-tool-choice.  Drop the tools field
+                    # and fall back to the text-based parser rather than failing
+                    # the whole request.
                     logger.warning(
                         "Model %s rejected tool spec (HTTP %d); retrying without tools",
                         model,
                         e.response.status_code,
                     )
                     no_tools = True
-                    payload.pop("tools", None)
                     try:
-                        resp = await client.post(
-                            f"{settings.ollama_url}/api/chat",
-                            json=payload,
+                        data = await chat_completion(
+                            client,
+                            base_url=settings.llm_base_url,
+                            api_key=settings.llm_api_key,
+                            model=model,
+                            messages=messages,
+                            tools=None,
+                            max_tokens=settings.llm_max_tokens,
                         )
-                        resp.raise_for_status()
-                        data = resp.json()
                     except httpx.HTTPError as retry_err:
-                        logger.error("Ollama API error (no-tools retry): %s", retry_err)
+                        logger.error("LLM API error (no-tools retry): %s", retry_err)
                         duration_ms = (time.time() - start) * 1000
                         return {
                             "response": (
                                 "I was unable to reach the language model. "
-                                "Please check the Ollama service."
+                                "Please check the LLM service."
                             ),
                             "tools_called": tools_called,
                             "conversation_id": conversation_id,
@@ -544,12 +553,12 @@ async def chat(
                             "error": str(retry_err),
                         }
                 else:
-                    logger.error("Ollama API error (HTTP %d): %s", e.response.status_code, e)
+                    logger.error("LLM API error (HTTP %d): %s", e.response.status_code, e)
                     duration_ms = (time.time() - start) * 1000
                     return {
                         "response": (
                             "I was unable to reach the language model. "
-                            "Please check the Ollama service."
+                            "Please check the LLM service."
                         ),
                         "tools_called": tools_called,
                         "conversation_id": conversation_id,
@@ -558,12 +567,12 @@ async def chat(
                         "error": str(e),
                     }
             except httpx.HTTPError as e:
-                logger.error("Ollama API error: %s", e)
+                logger.error("LLM API error: %s", e)
                 duration_ms = (time.time() - start) * 1000
                 return {
                     "response": (
                         "I was unable to reach the language model. "
-                        "Please check the Ollama service."
+                        "Please check the LLM service."
                     ),
                     "tools_called": tools_called,
                     "conversation_id": conversation_id,
@@ -572,10 +581,13 @@ async def chat(
                     "error": str(e),
                 }
 
-            assistant_msg = data.get("message", {})
+            # Strip server-only fields (reasoning_content, refusal, ...) before
+            # storing — this history is cached for an hour and replayed, and
+            # those fields are not legal as input.
+            assistant_msg = normalize_assistant_message(extract_message(data))
             messages.append(assistant_msg)
 
-            # Check for structured tool calls (native Ollama function calling)
+            # Check for structured tool calls (native function calling)
             tool_calls = assistant_msg.get("tool_calls")
             text_based = False
 
@@ -620,25 +632,21 @@ async def chat(
                 else:
                     break
 
-            # Execute each tool call and feed results back
+            # Execute each tool call and feed results back.
+            # Every tool_call id must be answered before the next request with
+            # nothing interleaved, so this loop never breaks early — an abort is
+            # recorded and applied once the whole batch has been answered.
+            abort_nudge = ""
             for tc in tool_calls:
                 func_info = tc.get("function", {})
                 tool_name = func_info.get("name", "")
-                arguments = func_info.get("arguments", {})
+                # OpenAI-compatible servers send arguments as a JSON string;
+                # the text fallback parser produces a dict already.
+                arguments = parse_tool_arguments(func_info.get("arguments"))
 
                 # Some models prefix tool names with "functions." — strip it.
                 if tool_name.startswith("functions."):
                     tool_name = tool_name[len("functions."):]
-
-                # Some models (gpt-oss) double-nest the tool call: the outer
-                # "arguments" dict contains {"name": "...", "arguments": {actual args}}.
-                # Unwrap to get the real arguments.
-                if (
-                    isinstance(arguments, dict)
-                    and "arguments" in arguments
-                    and isinstance(arguments["arguments"], dict)
-                ):
-                    arguments = arguments["arguments"]
 
                 logger.info(
                     "Agent calling tool: %s(%s)",
@@ -680,31 +688,24 @@ async def chat(
                     else:
                         _last_failed_call = call_sig
                         _consecutive_failures = 1
-                    if _consecutive_failures >= 2:
+                    if _consecutive_failures >= 2 and not abort_nudge:
                         logger.warning(
                             "Tool %s failed twice with same args; breaking loop",
                             tool_name,
                         )
-                        # Inject a final user nudge so the model summarises
-                        messages.append({
-                            "role": "user",
-                            "content": (
-                                f"[Tool result for {tool_name}]: {json.dumps(result)}\n\n"
-                                "The tool is unavailable in this environment. "
-                                "Please summarise what changes you would make and stop calling tools."
-                            ),
-                        })
-                        # Force exit of both loops
-                        tool_calls = []
-                        turns_used = max_turns  # exhausts outer loop
-                        break
+                        # Recorded now, appended after the batch is answered.
+                        abort_nudge = (
+                            "The tool is unavailable in this environment. "
+                            "Please summarise what changes you would make and "
+                            "stop calling tools."
+                        )
                 else:
                     _last_failed_call = ""
                     _consecutive_failures = 0
 
                 if text_based:
-                    # For text-based tool calls use a user message so models
-                    # that don't understand the "tool" role still see the result
+                    # Text-parsed calls carry no id, so they cannot be answered
+                    # with a "tool" message — feed the result back as a user turn.
                     messages.append(
                         {
                             "role": "user",
@@ -714,12 +715,13 @@ async def chat(
                         }
                     )
                 else:
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "content": str(result),
-                        }
-                    )
+                    messages.append(tool_result_message(tc["id"], result))
+
+            if abort_nudge:
+                # Every tool call above has been answered, so the history is
+                # valid and this nudge can be appended safely.
+                messages.append({"role": "user", "content": abort_nudge})
+                break
 
     # Extract final assistant response.
     # Skip messages whose entire content is raw JSON tool calls -- those were

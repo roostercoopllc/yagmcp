@@ -74,7 +74,7 @@ public class GhidraAssistSettings implements OptionsChangeListener {
     private static final String OPT_REQUEST_TIMEOUT = "Request Timeout (seconds)";
 
     private static final String DEFAULT_SERVER_URL = "http://localhost:8889";
-    private static final String DEFAULT_MODEL_NAME = "qwen2.5-coder:7b";
+    private static final String DEFAULT_MODEL_NAME = "RedHatAI/Llama-4-Maverick-17B-128E-Instruct-quantized.w4a16";
     private static final boolean DEFAULT_AUTO_CONTEXT = true;
     private static final String DEFAULT_CONTEXT_MODE = "function";
     private static final int DEFAULT_MAX_HISTORY = 50;

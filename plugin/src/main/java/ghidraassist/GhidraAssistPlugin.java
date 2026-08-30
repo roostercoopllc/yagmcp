@@ -19,7 +19,7 @@ import ghidra.program.model.listing.Program;
  *
  * <p>This plugin provides an embedded chat panel in the CodeBrowser that
  * connects to a remote YAGMCP server for headless Ghidra analysis
- * powered by Ollama (or any compatible LLM).</p>
+ * powered by an OpenAI-compatible LLM endpoint (vLLM, NIM, or similar).</p>
  *
  * <p>The plugin tracks the current function, address, and selection,
  * automatically sending context with each chat message so the LLM
@@ -32,7 +32,7 @@ import ghidra.program.model.listing.Program;
     category = PluginCategoryNames.ANALYSIS,
     shortDescription = "LLM-assisted reverse engineering",
     description = "Embedded chat panel connecting to a YAGMCP server for " +
-        "context-aware LLM analysis of Ghidra programs. Supports Ollama, " +
+        "context-aware LLM analysis of Ghidra programs. Supports vLLM/NIM, " +
         "Claude Desktop, and Open WebUI backends."
 )
 //@formatter:on

@@ -104,7 +104,7 @@ public class GhidraAssistClient {
 
     /**
      * Fetches available models from the YAGMCP server's /api/models endpoint,
-     * which proxies to the server's configured Ollama backend.
+     * which proxies to the server's configured LLM backend.
      *
      * @return CompletableFuture resolving to a list of available model names
      */

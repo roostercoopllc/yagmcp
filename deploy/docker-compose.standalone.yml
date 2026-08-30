@@ -1,58 +1,30 @@
 # =============================================================================
-# YAGMCP — Standalone Docker Compose (Ollama + Server + Open WebUI)
+# YAGMCP — Docker Compose (Server + Open WebUI)
 #
-# A complete, self-contained reverse-engineering analysis stack.
+# A reverse-engineering analysis stack that talks to an EXTERNAL
+# OpenAI-compatible LLM endpoint (vLLM or NVIDIA NIM).
 #
-# Usage (CPU):
+# This stack is no longer self-contained: it does NOT bundle a model server.
+# Llama 4 Maverick is served tensor-parallel across the DGX Spark pair, which
+# needs GPUs and ~400B weights — not something compose can stand up locally.
+# Point LLM_BASE_URL at whatever OpenAI-compatible endpoint you have.
+#
+# Usage:
 #   cp .env.standalone.template .env.standalone
+#   # set LLM_BASE_URL / LLM_MODEL / LLM_API_KEY in that file
 #   docker compose -f docker-compose.standalone.yml up -d
 #
-# Usage (GPU with NVIDIA):
-#   cp .env.standalone.template .env.standalone
-#   docker compose -f docker-compose.standalone.yml --profile gpu up -d
-#
-# Then load a model (first run only):
-#   docker compose -f docker-compose.standalone.yml run --rm ollama ollama pull qwen2.5-coder:7b
+# Verify the endpoint is reachable first:
+#   curl "$LLM_BASE_URL/models"
 #
 # Browser access:
 #   Open WebUI:  http://localhost:3000
 #   YAGMCP:      http://localhost:8889
-#   Ollama:      http://localhost:11434 (API only)
 # =============================================================================
 
 version: "3.8"
 
 services:
-  # ---------------------------------------------------------------------------
-  # Ollama — Local LLM backend
-  # ---------------------------------------------------------------------------
-  ollama:
-    image: ollama/ollama:latest
-    container_name: yagmcp-ollama
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    environment:
-      - OLLAMA_MODELS=${OLLAMA_MODELS:-/root/.ollama/models}
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    # GPU profile: uncomment below for NVIDIA GPU support
-    # profiles:
-    #   - gpu
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-
   # ---------------------------------------------------------------------------
   # YAGMCP Server — MCP analysis server
   # ---------------------------------------------------------------------------
@@ -61,17 +33,17 @@ services:
     image: ghcr.io/roostercoopllc/yagmcp-server:latest
     container_name: yagmcp-server
     restart: unless-stopped
-    depends_on:
-      ollama:
-        condition: service_healthy
     # Fallback: build locally if GHCR image is unavailable
     build:
       context: ../server
       dockerfile: Dockerfile
     environment:
-      # Override .env to use local Ollama service
-      OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5-coder:7b}
+      # External OpenAI-compatible endpoint. The "/v1" suffix is optional.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://192.168.0.25:8001/v1}
+      LLM_MODEL: ${LLM_MODEL:-RedHatAI/Llama-4-Maverick-17B-128E-Instruct-quantized.w4a16}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-300}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       REPOS_DIR: ${REPOS_DIR:-/repos}
       MAX_CACHED_PROGRAMS: ${MAX_CACHED_PROGRAMS:-5}
       GHIDRA_ASSIST_PORT: ${GHIDRA_ASSIST_PORT:-8889}
@@ -100,12 +72,13 @@ services:
     image: ghcr.io/open-webui/open-webui:main
     container_name: yagmcp-webui
     restart: unless-stopped
-    depends_on:
-      ollama:
-        condition: service_healthy
     environment:
-      # Connect to local Ollama instance
-      OLLAMA_BASE_URL: http://ollama:11434
+      # Point Open WebUI at the same OpenAI-compatible endpoint.
+      OPENAI_API_BASE_URL: ${LLM_BASE_URL:-http://192.168.0.25:8001/v1}
+      OPENAI_API_KEY: ${LLM_API_KEY:-}
+      # Without this Open WebUI keeps probing localhost:11434 and the model
+      # picker stalls for ~10s on every page load.
+      ENABLE_OLLAMA_API: "false"
       # Optional: Allow insecure HTTP (needed for localhost development)
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-change-me-in-production}
     ports:
@@ -120,8 +93,6 @@ services:
 # Named volumes (persistent data)
 # ---------------------------------------------------------------------------
 volumes:
-  ollama_data:
-    driver: local
   yagmcp_data:
     driver: local
   webui_data:
